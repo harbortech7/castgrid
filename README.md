@@ -40,7 +40,7 @@ You do NOT need Identity for this setup. If you later want multi-user logins:
 
 - `GITHUB_REPO`: `owner/repo` (example: `harbortech7/castgrid`)
 - `GITHUB_BRANCH`: branch to write to (default `main`)
-- `GITHUB_TOKEN`: GitHub PAT with `repo` scope (can be classic token)
+- `GITHUB_TOKEN`: GitHub fine-grained Personal Access Token with Contents and Metadata permissions
 - `ADMIN_TOKEN`: secret you will type into the dashboard (header `X-Admin-Token`)
 
 ## API endpoints (Netlify Functions)

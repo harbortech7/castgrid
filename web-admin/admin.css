@@ -69,6 +69,21 @@ input, textarea, select {
     font-weight: bold !important;
 }
 
+/* Fix the header buttons (High Contrast, Large Text) */
+.header-actions .btn-secondary {
+    background-color: #f0f0f0 !important;
+    color: #000000 !important;
+    border: 2px solid #000000 !important;
+    font-weight: bold !important;
+}
+
+/* Fix any other white text on white background */
+.status-btn {
+    color: #000000 !important;
+    background-color: #f0f0f0 !important;
+    border: 2px solid #000000 !important;
+}
+
 .large-text body, body.large-text {
     font-size: 125%;
 }
