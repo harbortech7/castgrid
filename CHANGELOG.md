@@ -353,3 +353,15 @@ CastGrid/
 **🎉 CastGrid v1.1.0 - Complete Digital Signage System with Web Admin Dashboard!**
 
 *Production-ready solution with easy deployment, comprehensive management tools, and professional features for digital signage applications.* 
+## [1.2.0] - 2025-08-15 - Admin Access Code (No-Identity) Path
+
+### Added
+- Admin Access Code fallback for authentication via headers `X-Admin-Token` and `X-Tenant`.
+- Utility `getTenantFromEvent(event, context)` to resolve tenant from Identity or fallback headers/query.
+- Web Admin: inputs to save admin token and tenant locally; API calls now include headers when present.
+- Media update/delete now call Netlify Functions (`/media-items`) instead of Firebase.
+- Test API Connection button wired to call `/devices` with headers.
+
+### Notes
+- Set env vars on Netlify: `GITHUB_REPO`, `GITHUB_BRANCH`, `GITHUB_TOKEN`, `ADMIN_TOKEN`.
+- Public Android endpoint remains unauthenticated: `/.netlify/functions/public-layout/:tenant/:deviceId`.

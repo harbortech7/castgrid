@@ -8,6 +8,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="admin-container">
         <!-- Navigation Header -->
         <header class="admin-header">
@@ -17,6 +18,8 @@
                     <h1>CastGrid Admin</h1>
                 </div>
                 <div class="header-actions">
+                    <button id="toggle-contrast" class="btn-secondary" aria-pressed="false" aria-label="Toggle high contrast">High Contrast</button>
+                    <button id="toggle-text" class="btn-secondary" aria-pressed="false" aria-label="Toggle large text">Large Text</button>
                     <button id="firebase-status" class="status-btn disconnected">
                         <i class="fas fa-plug"></i>
                         <span>Not Connected</span>
@@ -34,7 +37,7 @@
             <nav class="admin-sidebar">
                 <ul class="nav-menu">
                     <li><a href="#setup" class="nav-link active" data-section="setup">
-                        <i class="fas fa-rocket"></i> Firebase Setup
+                        <i class="fas fa-user-shield"></i> Admin Login
                     </a></li>
                     <li><a href="#devices" class="nav-link" data-section="devices">
                         <i class="fas fa-tv"></i> Devices
@@ -60,106 +63,83 @@
                 <!-- Firebase Setup Section -->
                 <section id="setup-section" class="content-section active">
                     <div class="section-header">
-                        <h2><i class="fas fa-rocket"></i> Firebase Setup Assistant</h2>
-                        <p>Let's get your Firebase project configured for CastGrid</p>
+                        <h2><i class="fas fa-user-shield"></i> Admin Access</h2>
+                        <p>Sign in to manage your tenant. Deployed on Netlify with Identity.</p>
                     </div>
 
                     <div class="setup-steps">
-                        <!-- Step 1: Create Firebase Project -->
+                        <!-- Step 1: Enable Netlify Identity -->
                         <div class="setup-step" data-step="1">
                             <div class="step-header">
                                 <span class="step-number">1</span>
-                                <h3>Create Firebase Project</h3>
+                                <h3>Enable Netlify Identity</h3>
                                 <i class="fas fa-check step-check"></i>
                             </div>
                             <div class="step-content">
-                                <p>First, create a new Firebase project:</p>
+                                <p>In your Netlify site (`Site settings → Identity`), click "Enable Identity".</p>
                                 <ol>
-                                    <li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a></li>
-                                    <li>Click "Add project" or "Create a project"</li>
-                                    <li>Enter project name: <code>castgrid-[your-name]</code></li>
-                                    <li>Disable Google Analytics (optional for this project)</li>
-                                    <li>Click "Create project"</li>
+                                    <li>Set Registration to "Invite only"</li>
+                                    <li>Invite yourself and client users</li>
+                                    <li>Assign a tenant role (e.g., <code>tenant:acme</code>) or set <code>app_metadata.tenant</code></li>
                                 </ol>
-                                <button class="btn-primary" onclick="completeStep(1)">✓ Project Created</button>
+                                <button class="btn-primary" onclick="completeStep(1)">✓ Identity Enabled</button>
                             </div>
                         </div>
 
-                        <!-- Step 2: Enable Services -->
+                        <!-- Step 2: Configure GitHub Storage -->
                         <div class="setup-step" data-step="2">
                             <div class="step-header">
                                 <span class="step-number">2</span>
-                                <h3>Enable Firebase Services</h3>
+                                <h3>Connect GitHub Storage</h3>
                                 <i class="fas fa-check step-check"></i>
                             </div>
                             <div class="step-content">
-                                <p>Enable the required Firebase services:</p>
-                                <div class="service-cards">
-                                    <div class="service-card">
-                                        <i class="fas fa-database"></i>
-                                        <h4>Firestore Database</h4>
-                                        <p>Go to "Firestore Database" → "Create database" → "Start in test mode"</p>
-                                        <button class="btn-secondary" onclick="toggleService('firestore')">✓ Enabled</button>
-                                    </div>
-                                    <div class="service-card">
-                                        <i class="fas fa-cloud-upload-alt"></i>
-                                        <h4>Storage</h4>
-                                        <p>Go to "Storage" → "Get started" → "Start in test mode"</p>
-                                        <button class="btn-secondary" onclick="toggleService('storage')">✓ Enabled</button>
-                                    </div>
-                                    <div class="service-card">
-                                        <i class="fas fa-globe"></i>
-                                        <h4>Hosting</h4>
-                                        <p>Go to "Hosting" → "Get started" → Follow the setup guide</p>
-                                        <button class="btn-secondary" onclick="toggleService('hosting')">✓ Enabled</button>
-                                    </div>
-                                </div>
+                                <p>Create a GitHub Personal Access Token and connect your repo for storing tenant JSON files:</p>
+                                <ol>
+                                    <li>Create a token with <code>repo</code> scope</li>
+                                    <li>In Netlify → Site settings → Environment variables, add:
+                                        <ul>
+                                            <li><code>GITHUB_REPO</code> = <code>harbortech7/castgrid</code></li>
+                                            <li><code>GITHUB_BRANCH</code> = <code>main</code> (optional)</li>
+                                            <li><code>GITHUB_TOKEN</code> = your token</li>
+                                        </ul>
+                                    </li>
+                                    <li>Click "Deploy" to apply settings</li>
+                                </ol>
+                                <button class="btn-primary" onclick="completeStep(2)">✓ GitHub Connected</button>
                             </div>
                         </div>
 
-                        <!-- Step 3: Get Configuration -->
+                        <!-- Step 3: Sign In and Assign Tenant -->
                         <div class="setup-step" data-step="3">
                             <div class="step-header">
                                 <span class="step-number">3</span>
-                                <h3>Get Firebase Configuration</h3>
+                                <h3>Sign In</h3>
                                 <i class="fas fa-check step-check"></i>
                             </div>
                             <div class="step-content">
-                                <p>Get your Firebase configuration:</p>
-                                <ol>
-                                    <li>In Firebase Console, click the gear icon → "Project settings"</li>
-                                    <li>Scroll down to "Your apps" section</li>
-                                    <li>Click "Add app" → Choose "Web" (</> icon)</li>
-                                    <li>Enter app nickname: "CastGrid Admin"</li>
-                                    <li>Copy the configuration object</li>
-                                </ol>
-                                
-                                <div class="config-input">
-                                    <label>Paste your Firebase config here:</label>
-                                    <textarea id="firebase-config" placeholder='const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456"
-};'></textarea>
-                                    <button class="btn-primary" onclick="saveFirebaseConfig()">Save Configuration</button>
+                                <p>Use Netlify Identity widget to sign in. Your account must have a tenant assigned.</p>
+                                <div style="margin: 1rem 0; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                                    <button class="btn-primary" onclick="window.netlifyIdentity && window.netlifyIdentity.open('login')"><i class="fas fa-sign-in-alt"></i> Sign In</button>
+                                    <span style="color:#888;">or use Admin Access Code:</span>
+                                    <input type="password" id="admin-token" placeholder="Enter admin token" style="padding:0.5rem; border:1px solid #ddd; border-radius:6px;">
+                                    <input type="text" id="admin-tenant" placeholder="tenant (e.g., acme)" style="padding:0.5rem; border:1px solid #ddd; border-radius:6px;">
+                                    <button class="btn-secondary" onclick="saveAdminAccess()">Use Access Code</button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Step 4: Test Connection -->
+                        <!-- Step 4: Test API -->
                         <div class="setup-step" data-step="4">
                             <div class="step-header">
                                 <span class="step-number">4</span>
-                                <h3>Test Connection</h3>
+                                <h3>Test API</h3>
                                 <i class="fas fa-check step-check"></i>
                             </div>
                             <div class="step-content">
                                 <div class="connection-test">
-                                    <button id="test-connection" class="btn-primary">
-                                        <i class="fas fa-wifi"></i> Test Firebase Connection
+                                    <button id="test-connection" class="btn-primary" onclick="testApiConnection()">
+                                        <i class="fas fa-wifi"></i> Test API Connection
                                     </button>
                                     <div id="connection-result" class="connection-result"></div>
                                 </div>
@@ -329,10 +309,8 @@
     <!-- Success/Error Notifications -->
     <div id="notifications" class="notifications"></div>
 
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-storage-compat.js"></script>
+    <!-- Netlify Identity Widget -->
+    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
     
     <!-- Admin JavaScript -->
     <script src="admin.js"></script>
