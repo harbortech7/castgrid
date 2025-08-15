@@ -1,9 +1,8 @@
 // ===== CastGrid Admin Dashboard JavaScript =====
 
 // Global variables
-let firebaseApp = null;
-let db = null;
-let storage = null;
+let apiBase = '/.netlify/functions';
+let identityUser = null;
 let currentDevices = [];
 let currentMediaItems = [];
 let currentMediaBoxes = [];
@@ -20,38 +19,47 @@ let setupProgress = {
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
-    loadStoredConfig();
+    restoreAccessibilityPrefs();
 });
+
+function restoreAccessibilityPrefs(){
+    const contrast = localStorage.getItem('cg_ui_contrast') === '1';
+    const large = localStorage.getItem('cg_ui_largetext') === '1';
+    document.body.classList.toggle('high-contrast', contrast);
+    document.body.classList.toggle('large-text', large);
+    const cBtn = document.getElementById('toggle-contrast'); if (cBtn) cBtn.setAttribute('aria-pressed', String(contrast));
+    const tBtn = document.getElementById('toggle-text'); if (tBtn) tBtn.setAttribute('aria-pressed', String(large));
+}
 
 function initializeApp() {
     console.log('CastGrid Admin Dashboard Initialized');
     
-    // Check if Firebase config exists in localStorage
-    const savedConfig = localStorage.getItem('castgrid-firebase-config');
-    if (savedConfig) {
-        try {
-            const config = JSON.parse(savedConfig);
-            initializeFirebase(config);
-        } catch (error) {
-            console.error('Error loading saved Firebase config:', error);
-        }
-    }
-    
-    // Load setup progress
-    const savedProgress = localStorage.getItem('castgrid-setup-progress');
-    if (savedProgress) {
-        try {
-            setupProgress = { ...setupProgress, ...JSON.parse(savedProgress) };
-            updateSetupUI();
-        } catch (error) {
-            console.error('Error loading setup progress:', error);
-        }
+    // Netlify Identity setup
+    if (window.netlifyIdentity) {
+        window.netlifyIdentity.on('login', user => { identityUser = user; updateConnectionStatus(true); });
+        window.netlifyIdentity.on('logout', () => { identityUser = null; updateConnectionStatus(false); });
+        window.netlifyIdentity.on('init', user => { identityUser = user; updateConnectionStatus(!!user); });
+        window.netlifyIdentity.init();
     }
 }
 
 // ===== Event Listeners =====
 
 function setupEventListeners() {
+    // Accessibility toggles
+    document.getElementById('toggle-contrast')?.addEventListener('click', function(){
+        const on = !document.body.classList.contains('high-contrast');
+        document.body.classList.toggle('high-contrast', on);
+        this.setAttribute('aria-pressed', String(on));
+        localStorage.setItem('cg_ui_contrast', on ? '1' : '0');
+    });
+    document.getElementById('toggle-text')?.addEventListener('click', function(){
+        const on = !document.body.classList.contains('large-text');
+        document.body.classList.toggle('large-text', on);
+        this.setAttribute('aria-pressed', String(on));
+        localStorage.setItem('cg_ui_largetext', on ? '1' : '0');
+    });
+
     // Navigation
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', function(e) {
@@ -62,7 +70,7 @@ function setupEventListeners() {
     });
     
     // Firebase setup
-    document.getElementById('test-connection')?.addEventListener('click', testFirebaseConnection);
+    document.getElementById('test-connection')?.addEventListener('click', testApiConnection);
     
     // File upload
     setupFileUpload();
@@ -147,118 +155,61 @@ function navigateToSection(sectionName) {
     }
 }
 
-// ===== Firebase Setup =====
+// ===== API Setup (Netlify Functions) =====
 
-function saveFirebaseConfig() {
-    const configText = document.getElementById('firebase-config').value.trim();
-    
-    if (!configText) {
-        showNotification('Please enter your Firebase configuration', 'error');
-        return;
-    }
-    
-    try {
-        // Extract the config object from the text
-        const match = configText.match(/firebaseConfig\s*=\s*({[\s\S]*?});?/);
-        if (!match) {
-            throw new Error('Invalid configuration format');
-        }
-        
-        const configObj = eval('(' + match[1] + ')');
-        
-        // Validate required fields
-        const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
-        for (const field of requiredFields) {
-            if (!configObj[field]) {
-                throw new Error(`Missing required field: ${field}`);
-            }
-        }
-        
-        // Save configuration
-        localStorage.setItem('castgrid-firebase-config', JSON.stringify(configObj));
-        
-        // Initialize Firebase
-        initializeFirebase(configObj);
-        
-        // Mark step as completed
-        setupProgress.step3 = true;
-        saveSetupProgress();
-        updateSetupUI();
-        
-        showNotification('Firebase configuration saved successfully!', 'success');
-        
-    } catch (error) {
-        showNotification('Error parsing Firebase configuration: ' + error.message, 'error');
-    }
-}
-
-function initializeFirebase(config) {
-    try {
-        if (firebaseApp) {
-            firebaseApp.delete();
-        }
-        
-        firebaseApp = firebase.initializeApp(config);
-        db = firebase.firestore();
-        storage = firebase.storage();
-        
-        // Enable offline persistence
-        db.enablePersistence({ synchronizeTabs: true }).catch(error => {
-            console.warn('Firestore persistence failed:', error);
-        });
-        
-        updateConnectionStatus(true);
-        console.log('Firebase initialized successfully');
-        
-    } catch (error) {
-        console.error('Firebase initialization failed:', error);
-        updateConnectionStatus(false);
-        showNotification('Firebase initialization failed: ' + error.message, 'error');
-    }
-}
-
-function testFirebaseConnection() {
-    if (!db) {
-        showNotification('Firebase not configured', 'error');
-        return;
-    }
-    
+async function testApiConnection() {
     showLoading(true);
     const resultDiv = document.getElementById('connection-result');
-    
-    // Test Firestore connection
-    db.collection('test').limit(1).get()
-        .then(() => {
-            resultDiv.className = 'connection-result success';
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = '✅ Firebase connection successful!<br>Firestore and Storage are ready to use.';
-            
-            // Mark step as completed
-            setupProgress.step4 = true;
-            saveSetupProgress();
-            updateSetupUI();
-            
-            showNotification('Firebase connection test passed!', 'success');
-        })
-        .catch(error => {
-            resultDiv.className = 'connection-result error';
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = '❌ Connection failed: ' + error.message;
-            showNotification('Firebase connection test failed', 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/devices`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        resultDiv.className = 'connection-result success';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '✅ API connection successful!';
+        setupProgress.step4 = true;
+        saveSetupProgress();
+        updateSetupUI();
+        showNotification('API connection test passed!', 'success');
+    } catch (error) {
+        resultDiv.className = 'connection-result error';
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '❌ Connection failed: ' + (error.message || 'Unknown error');
+        showNotification('API connection test failed', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function authHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (identityUser && identityUser.token) headers['Authorization'] = `Bearer ${identityUser.token.access_token}`;
+    const token = localStorage.getItem('cg_admin_token');
+    const tenant = localStorage.getItem('cg_admin_tenant');
+    if (token && tenant) {
+        headers['X-Admin-Token'] = token;
+        headers['X-Tenant'] = tenant;
+    }
+    return headers;
+}
+
+function saveAdminAccess(){
+    const token = document.getElementById('admin-token')?.value.trim();
+    const tenant = document.getElementById('admin-tenant')?.value.trim();
+    if (!token || !tenant) { showNotification('Enter both admin token and tenant', 'error'); return; }
+    localStorage.setItem('cg_admin_token', token);
+    localStorage.setItem('cg_admin_tenant', tenant);
+    showNotification('Admin access code saved', 'success');
+    updateConnectionStatus(true);
 }
 
 function updateConnectionStatus(connected) {
     const statusBtn = document.getElementById('firebase-status');
     if (connected) {
         statusBtn.className = 'status-btn connected';
-        statusBtn.innerHTML = '<i class="fas fa-check-circle"></i><span>Connected</span>';
+        statusBtn.innerHTML = '<i class="fas fa-user-check"></i><span>Signed In</span>';
     } else {
         statusBtn.className = 'status-btn disconnected';
-        statusBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>Not Connected</span>';
+        statusBtn.innerHTML = '<i class="fas fa-user-times"></i><span>Not Signed In</span>';
     }
 }
 
@@ -323,30 +274,20 @@ function loadStoredConfig() {
 
 // ===== Device Management =====
 
-function loadDevices() {
-    if (!db) {
-        showNotification('Firebase not connected', 'error');
-        return;
-    }
-    
+async function loadDevices() {
     showLoading(true);
-    
-    db.collection('devices').get()
-        .then(snapshot => {
-            currentDevices = [];
-            snapshot.forEach(doc => {
-                currentDevices.push({ id: doc.id, ...doc.data() });
-            });
-            renderDevices();
-            updateDeviceSelectors();
-        })
-        .catch(error => {
-            console.error('Error loading devices:', error);
-            showNotification('Error loading devices: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/devices`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentDevices = await res.json();
+        renderDevices();
+        updateDeviceSelectors();
+    } catch (error) {
+        console.error('Error loading devices:', error);
+        showNotification('Error loading devices: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function renderDevices() {
@@ -422,53 +363,38 @@ function addDevice() {
     }
 }
 
-function handleDeviceSubmit(e) {
+async function handleDeviceSubmit(e) {
     e.preventDefault();
-    
     const deviceId = document.getElementById('device-id').value.trim();
     const location = document.getElementById('device-location').value.trim();
     const gridCount = parseInt(document.getElementById('device-grid-count').value);
-    
     if (!deviceId || !location) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
-    
-    // Check if device ID already exists
     if (currentDevices.find(d => d.deviceId === deviceId)) {
         showNotification('Device ID already exists', 'error');
         return;
     }
-    
     showLoading(true);
-    
-    // Create device object
-    const device = {
-        deviceId: deviceId,
-        location: location,
-        grids: generateGridIds(deviceId, gridCount)
-    };
-    
-    // Save to Firestore
-    db.collection('devices').doc(deviceId).set(device)
-        .then(() => {
-            // Create grid documents
-            return createGridsForDevice(device);
-        })
-        .then(() => {
-            currentDevices.push(device);
-            renderDevices();
-            updateDeviceSelectors();
-            closeModal('device-modal');
-            showNotification('Device created successfully!', 'success');
-        })
-        .catch(error => {
-            console.error('Error creating device:', error);
-            showNotification('Error creating device: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    const device = { deviceId, location, grids: generateGridIds(deviceId, gridCount) };
+    try {
+        // create default grids
+        await saveGridsForDevice(device);
+        // upsert device
+        const res = await fetch(`${apiBase}/devices`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(device) });
+        if (!res.ok) throw new Error(await res.text());
+        currentDevices.push(device);
+        renderDevices();
+        updateDeviceSelectors();
+        closeModal('device-modal');
+        showNotification('Device created successfully!', 'success');
+    } catch (error) {
+        console.error('Error creating device:', error);
+        showNotification('Error creating device: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function generateGridIds(deviceId, gridCount) {
@@ -479,20 +405,14 @@ function generateGridIds(deviceId, gridCount) {
     return grids;
 }
 
-function createGridsForDevice(device) {
-    const batch = db.batch();
-    
-    device.grids.forEach((gridId, index) => {
-        const gridRef = db.collection('grids').doc(gridId);
-        batch.set(gridRef, {
-            gridId: gridId,
-            deviceId: device.deviceId,
-            position: index + 1,
-            mediaBoxId: ''
-        });
-    });
-    
-    return batch.commit();
+async function saveGridsForDevice(device) {
+    const existingRes = await fetch(`${apiBase}/grids?deviceId=${encodeURIComponent(device.deviceId)}`, { headers: authHeaders() });
+    const existing = existingRes.ok ? await existingRes.json() : [];
+    const merged = [...device.grids.map((gridId, i) => ({ gridId, deviceId: device.deviceId, position: i + 1, mediaBoxId: '' }))];
+    // Write full grids.json via function by PUTting each grid
+    for (const g of merged) {
+        await fetch(`${apiBase}/grids?gridId=${encodeURIComponent(g.gridId)}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(g) });
+    }
 }
 
 function editDevice(deviceId) {
@@ -513,41 +433,22 @@ function editDevice(deviceId) {
     }
 }
 
-function deleteDevice(deviceId) {
-    if (!confirm(`Are you sure you want to delete device "${deviceId}"? This action cannot be undone.`)) {
-        return;
-    }
-    
+async function deleteDevice(deviceId) {
+    if (!confirm(`Are you sure you want to delete device "${deviceId}"? This action cannot be undone.`)) return;
     showLoading(true);
-    
-    const device = currentDevices.find(d => d.deviceId === deviceId);
-    if (!device) return;
-    
-    // Delete device and associated grids
-    const batch = db.batch();
-    
-    // Delete device
-    batch.delete(db.collection('devices').doc(deviceId));
-    
-    // Delete associated grids
-    device.grids.forEach(gridId => {
-        batch.delete(db.collection('grids').doc(gridId));
-    });
-    
-    batch.commit()
-        .then(() => {
-            currentDevices = currentDevices.filter(d => d.deviceId !== deviceId);
-            renderDevices();
-            updateDeviceSelectors();
-            showNotification('Device deleted successfully', 'success');
-        })
-        .catch(error => {
-            console.error('Error deleting device:', error);
-            showNotification('Error deleting device: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/devices?deviceId=${encodeURIComponent(deviceId)}`, { method: 'DELETE', headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentDevices = currentDevices.filter(d => d.deviceId !== deviceId);
+        renderDevices();
+        updateDeviceSelectors();
+        showNotification('Device deleted successfully', 'success');
+    } catch (error) {
+        console.error('Error deleting device:', error);
+        showNotification('Error deleting device: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function updateDeviceSelectors() {
@@ -639,111 +540,41 @@ function handleFiles(files) {
 function uploadFile(file) {
     const progressContainer = document.getElementById('upload-progress');
     const progressId = 'progress_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    
-    // Create progress item
     const progressItem = document.createElement('div');
     progressItem.className = 'progress-item';
     progressItem.id = progressId;
     progressItem.innerHTML = `
         <div class="progress-header">
             <span>${file.name}</span>
-            <span class="progress-percentage">0%</span>
+            <span class="progress-percentage">Uploading...</span>
         </div>
         <div class="progress-bar">
-            <div class="progress-fill"></div>
+            <div class="progress-fill" style="width: 100%"></div>
         </div>
     `;
     progressContainer.appendChild(progressItem);
-    
-    // Create storage reference
-    const fileName = `media/${Date.now()}_${file.name}`;
-    const storageRef = storage.ref(fileName);
-    
-    // Start upload
-    const uploadTask = storageRef.put(file);
-    
-    uploadTask.on('state_changed',
-        (snapshot) => {
-            // Progress
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            const progressFill = progressItem.querySelector('.progress-fill');
-            const progressText = progressItem.querySelector('.progress-percentage');
-            
-            progressFill.style.width = progress + '%';
-            progressText.textContent = Math.round(progress) + '%';
-        },
-        (error) => {
-            // Error
-            console.error('Upload error:', error);
-            progressItem.style.borderColor = 'var(--danger-color)';
-            progressItem.querySelector('.progress-percentage').textContent = 'Failed';
-            showNotification(`Upload failed: ${file.name}`, 'error');
-        },
-        () => {
-            // Success
-            uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                // Create media item
-                const mediaItem = {
-                    mediaId: generateMediaId(),
-                    type: file.type.startsWith('video/') ? 'video' : 'image',
-                    filename: file.name,
-                    url: downloadURL,
-                    duration: file.type.startsWith('video/') ? 30 : 10 // Default durations
-                };
-                
-                // Save to Firestore
-                return db.collection('media-items').doc(mediaItem.mediaId).set(mediaItem);
-            }).then(() => {
-                // Success
-                progressItem.style.borderColor = 'var(--secondary-color)';
-                progressItem.querySelector('.progress-percentage').textContent = 'Complete';
-                
-                // Remove progress item after delay
-                setTimeout(() => {
-                    progressItem.remove();
-                }, 3000);
-                
-                // Reload media library
-                loadMediaLibrary();
-                showNotification(`${file.name} uploaded successfully!`, 'success');
-                
-            }).catch(error => {
-                console.error('Error saving media item:', error);
-                progressItem.style.borderColor = 'var(--danger-color)';
-                progressItem.querySelector('.progress-percentage').textContent = 'Failed';
-                showNotification(`Error saving ${file.name}`, 'error');
-            });
-        }
-    );
+
+    // NOTE: Replace this with Netlify Large Media/Blobs upload or external CDN. For now, we cannot upload directly.
+    showNotification('Direct uploads not configured. Please host media on a CDN and add by URL in Media Items.', 'warning');
 }
 
 function generateMediaId() {
     return 'media_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-function loadMediaLibrary() {
-    if (!db) {
-        showNotification('Firebase not connected', 'error');
-        return;
-    }
-    
+async function loadMediaLibrary() {
     showLoading(true);
-    
-    db.collection('media-items').get()
-        .then(snapshot => {
-            currentMediaItems = [];
-            snapshot.forEach(doc => {
-                currentMediaItems.push({ id: doc.id, ...doc.data() });
-            });
-            renderMediaGrid();
-        })
-        .catch(error => {
-            console.error('Error loading media:', error);
-            showNotification('Error loading media: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/media-items`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentMediaItems = await res.json();
+        renderMediaGrid();
+    } catch (error) {
+        console.error('Error loading media:', error);
+        showNotification('Error loading media: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function renderMediaGrid(filteredItems = null) {
@@ -877,99 +708,68 @@ function editMedia(mediaId) {
     document.body.appendChild(modal);
 }
 
-function updateMedia(event, mediaId) {
+async function updateMedia(event, mediaId) {
     event.preventDefault();
-    
+
     const filename = document.getElementById('edit-filename').value.trim();
     const duration = parseInt(document.getElementById('edit-duration').value);
-    
-    if (!filename) {
-        showNotification('Filename is required', 'error');
-        return;
-    }
-    
+
+    if (!filename) { showNotification('Filename is required', 'error'); return; }
+
     showLoading(true);
-    
-    db.collection('media-items').doc(mediaId).update({
-        filename: filename,
-        duration: duration
-    })
-    .then(() => {
-        // Update local data
-        const media = currentMediaItems.find(m => m.mediaId === mediaId);
-        if (media) {
-            media.filename = filename;
-            media.duration = duration;
-        }
-        
+    try {
+        const existing = currentMediaItems.find(m => m.mediaId === mediaId) || {};
+        const updated = { ...existing, mediaId, filename, duration };
+        const res = await fetch(`${apiBase}/media-items`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(updated) });
+        if (!res.ok) throw new Error(await res.text());
+        const idx = currentMediaItems.findIndex(m => m.mediaId === mediaId);
+        if (idx >= 0) currentMediaItems[idx] = updated;
         renderMediaGrid();
         document.querySelector('.modal.show')?.remove();
         showNotification('Media updated successfully!', 'success');
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error updating media:', error);
         showNotification('Error updating media: ' + error.message, 'error');
-    })
-    .finally(() => {
+    } finally {
         showLoading(false);
-    });
+    }
 }
 
-function deleteMedia(mediaId) {
+async function deleteMedia(mediaId) {
     const media = currentMediaItems.find(m => m.mediaId === mediaId);
     if (!media) return;
-    
-    if (!confirm(`Are you sure you want to delete "${media.filename}"? This action cannot be undone.`)) {
-        return;
-    }
-    
+    if (!confirm(`Are you sure you want to delete "${media.filename}"? This action cannot be undone.`)) return;
+
     showLoading(true);
-    
-    // Delete from Firestore
-    db.collection('media-items').doc(mediaId).delete()
-        .then(() => {
-            // Remove from storage (optional - files will remain accessible by URL)
-            // This is a design choice - you might want to keep files for backup
-            
-            // Update local data
-            currentMediaItems = currentMediaItems.filter(m => m.mediaId !== mediaId);
-            renderMediaGrid();
-            showNotification('Media deleted successfully', 'success');
-        })
-        .catch(error => {
-            console.error('Error deleting media:', error);
-            showNotification('Error deleting media: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/media-items?mediaId=${encodeURIComponent(mediaId)}`, { method: 'DELETE', headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentMediaItems = currentMediaItems.filter(m => m.mediaId !== mediaId);
+        renderMediaGrid();
+        showNotification('Media deleted successfully', 'success');
+    } catch (error) {
+        console.error('Error deleting media:', error);
+        showNotification('Error deleting media: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // ===== Media Boxes Management =====
 
-function loadMediaBoxes() {
-    if (!db) {
-        showNotification('Firebase not connected', 'error');
-        return;
-    }
-    
+async function loadMediaBoxes() {
     showLoading(true);
-    
-    db.collection('media-boxes').get()
-        .then(snapshot => {
-            currentMediaBoxes = [];
-            snapshot.forEach(doc => {
-                currentMediaBoxes.push({ id: doc.id, ...doc.data() });
-            });
-            renderMediaBoxes();
-        })
-        .catch(error => {
-            console.error('Error loading media boxes:', error);
-            showNotification('Error loading media boxes: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/media-boxes`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentMediaBoxes = await res.json();
+        renderMediaBoxes();
+    } catch (error) {
+        console.error('Error loading media boxes:', error);
+        showNotification('Error loading media boxes: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function renderMediaBoxes() {
@@ -1023,84 +823,67 @@ function renderMediaBoxes() {
     `).join('');
 }
 
-function addMediaBox() {
+async function addMediaBox() {
     const name = prompt('Enter media box name:');
     if (!name) return;
-    
     showLoading(true);
-    
-    const mediaBox = {
-        mediaBoxId: generateMediaBoxId(),
-        name: name.trim(),
-        mediaItems: []
-    };
-    
-    db.collection('media-boxes').doc(mediaBox.mediaBoxId).set(mediaBox)
-        .then(() => {
-            currentMediaBoxes.push(mediaBox);
-            renderMediaBoxes();
-            showNotification('Media box created successfully!', 'success');
-        })
-        .catch(error => {
-            console.error('Error creating media box:', error);
-            showNotification('Error creating media box: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    const mediaBox = { mediaBoxId: generateMediaBoxId(), name: name.trim(), mediaItems: [] };
+    try {
+        const res = await fetch(`${apiBase}/media-boxes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(mediaBox) });
+        if (!res.ok) throw new Error(await res.text());
+        currentMediaBoxes.push(mediaBox);
+        renderMediaBoxes();
+        showNotification('Media box created successfully!', 'success');
+    } catch (error) {
+        console.error('Error creating media box:', error);
+        showNotification('Error creating media box: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function generateMediaBoxId() {
     return 'mb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-function editMediaBox(boxId) {
+async function editMediaBox(boxId) {
     const box = currentMediaBoxes.find(b => b.mediaBoxId === boxId);
     if (!box) return;
-    
     const newName = prompt('Enter new name:', box.name);
     if (!newName || newName.trim() === box.name) return;
-    
     showLoading(true);
-    
-    db.collection('media-boxes').doc(boxId).update({ name: newName.trim() })
-        .then(() => {
-            box.name = newName.trim();
-            renderMediaBoxes();
-            showNotification('Media box updated successfully!', 'success');
-        })
-        .catch(error => {
-            console.error('Error updating media box:', error);
-            showNotification('Error updating media box: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const updated = { ...box, name: newName.trim() };
+        const res = await fetch(`${apiBase}/media-boxes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(updated) });
+        if (!res.ok) throw new Error(await res.text());
+        box.name = updated.name;
+        renderMediaBoxes();
+        showNotification('Media box updated successfully!', 'success');
+    } catch (error) {
+        console.error('Error updating media box:', error);
+        showNotification('Error updating media box: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
-function deleteMediaBox(boxId) {
+async function deleteMediaBox(boxId) {
     const box = currentMediaBoxes.find(b => b.mediaBoxId === boxId);
     if (!box) return;
-    
-    if (!confirm(`Are you sure you want to delete "${box.name}"? This action cannot be undone.`)) {
-        return;
-    }
-    
+    if (!confirm(`Are you sure you want to delete "${box.name}"? This action cannot be undone.`)) return;
     showLoading(true);
-    
-    db.collection('media-boxes').doc(boxId).delete()
-        .then(() => {
-            currentMediaBoxes = currentMediaBoxes.filter(b => b.mediaBoxId !== boxId);
-            renderMediaBoxes();
-            showNotification('Media box deleted successfully', 'success');
-        })
-        .catch(error => {
-            console.error('Error deleting media box:', error);
-            showNotification('Error deleting media box: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/media-boxes?mediaBoxId=${encodeURIComponent(boxId)}`, { method: 'DELETE', headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentMediaBoxes = currentMediaBoxes.filter(b => b.mediaBoxId !== boxId);
+        renderMediaBoxes();
+        showNotification('Media box deleted successfully', 'success');
+    } catch (error) {
+        console.error('Error deleting media box:', error);
+        showNotification('Error deleting media box: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function manageMediaBoxContent(boxId) {
@@ -1152,110 +935,86 @@ function manageMediaBoxContent(boxId) {
     document.body.appendChild(modal);
 }
 
-function addToMediaBox(boxId, mediaId) {
+async function addToMediaBox(boxId, mediaId) {
     const box = currentMediaBoxes.find(b => b.mediaBoxId === boxId);
     if (!box || box.mediaItems.includes(mediaId)) return;
-    
-    const updatedItems = [...box.mediaItems, mediaId];
-    
-    db.collection('media-boxes').doc(boxId).update({ mediaItems: updatedItems })
-        .then(() => {
-            box.mediaItems = updatedItems;
-            renderMediaBoxes();
-            
-            // Update the modal content
-            const contentDiv = document.getElementById(`box-content-${boxId}`);
-            if (contentDiv) {
-                const media = currentMediaItems.find(m => m.mediaId === mediaId);
-                if (media) {
-                    const newItem = document.createElement('div');
-                    newItem.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid #eee;';
-                    newItem.innerHTML = `
-                        <i class="fas fa-${media.type === 'video' ? 'video' : 'image'}"></i>
-                        <span style="flex: 1;">${media.filename}</span>
-                        <button class="btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="removeFromMediaBox('${boxId}', '${mediaId}')">Remove</button>
-                    `;
-                    contentDiv.appendChild(newItem);
-                }
+    const updated = { ...box, mediaItems: [...box.mediaItems, mediaId] };
+    try {
+        const res = await fetch(`${apiBase}/media-boxes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(updated) });
+        if (!res.ok) throw new Error(await res.text());
+        box.mediaItems = updated.mediaItems;
+        renderMediaBoxes();
+        const contentDiv = document.getElementById(`box-content-${boxId}`);
+        if (contentDiv) {
+            const media = currentMediaItems.find(m => m.mediaId === mediaId);
+            if (media) {
+                const newItem = document.createElement('div');
+                newItem.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid #eee;';
+                newItem.innerHTML = `
+                    <i class="fas fa-${media.type === 'video' ? 'video' : 'image'}"></i>
+                    <span style="flex: 1;">${media.filename}</span>
+                    <button class="btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="removeFromMediaBox('${boxId}', '${mediaId}')">Remove</button>
+                `;
+                contentDiv.appendChild(newItem);
             }
-            
-            showNotification('Media added to box!', 'success');
-        })
-        .catch(error => {
-            console.error('Error adding media to box:', error);
-            showNotification('Error adding media: ' + error.message, 'error');
-        });
+        }
+        showNotification('Media added to box!', 'success');
+    } catch (error) {
+        console.error('Error adding media to box:', error);
+        showNotification('Error adding media: ' + error.message, 'error');
+    }
 }
 
-function removeFromMediaBox(boxId, mediaId) {
+async function removeFromMediaBox(boxId, mediaId) {
     const box = currentMediaBoxes.find(b => b.mediaBoxId === boxId);
     if (!box) return;
-    
-    const updatedItems = box.mediaItems.filter(id => id !== mediaId);
-    
-    db.collection('media-boxes').doc(boxId).update({ mediaItems: updatedItems })
-        .then(() => {
-            box.mediaItems = updatedItems;
-            renderMediaBoxes();
-            
-            // Update the modal content by removing the item
-            const contentDiv = document.getElementById(`box-content-${boxId}`);
-            if (contentDiv) {
-                // Reload the content div
-                contentDiv.innerHTML = box.mediaItems.map(id => {
-                    const media = currentMediaItems.find(m => m.mediaId === id);
-                    return media ? `
-                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid #eee;">
-                            <i class="fas fa-${media.type === 'video' ? 'video' : 'image'}"></i>
-                            <span style="flex: 1;">${media.filename}</span>
-                            <button class="btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="removeFromMediaBox('${boxId}', '${id}')">Remove</button>
-                        </div>
-                    ` : '';
-                }).join('');
-            }
-            
-            showNotification('Media removed from box!', 'success');
-        })
-        .catch(error => {
-            console.error('Error removing media from box:', error);
-            showNotification('Error removing media: ' + error.message, 'error');
-        });
+    const updated = { ...box, mediaItems: box.mediaItems.filter(id => id !== mediaId) };
+    try {
+        const res = await fetch(`${apiBase}/media-boxes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(updated) });
+        if (!res.ok) throw new Error(await res.text());
+        box.mediaItems = updated.mediaItems;
+        renderMediaBoxes();
+        const contentDiv = document.getElementById(`box-content-${boxId}`);
+        if (contentDiv) {
+            contentDiv.innerHTML = box.mediaItems.map(id => {
+                const media = currentMediaItems.find(m => m.mediaId === id);
+                return media ? `
+                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid #eee;">
+                        <i class="fas fa-${media.type === 'video' ? 'video' : 'image'}"></i>
+                        <span style="flex: 1;">${media.filename}</span>
+                        <button class="btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="removeFromMediaBox('${boxId}', '${id}')">Remove</button>
+                    </div>
+                ` : '';
+            }).join('');
+        }
+        showNotification('Media removed from box!', 'success');
+    } catch (error) {
+        console.error('Error removing media from box:', error);
+        showNotification('Error removing media: ' + error.message, 'error');
+    }
 }
 
 // ===== Grid Layout Designer =====
 
 function loadGridDesigner() {
-    if (!db) {
-        showNotification('Firebase not connected', 'error');
-        return;
-    }
-    
-    // Load devices if not already loaded
     if (currentDevices.length === 0) {
         loadDevices();
     }
-    
-    // Load grids
     loadGrids();
 }
 
-function loadGrids() {
+async function loadGrids() {
     showLoading(true);
-    
-    db.collection('grids').get()
-        .then(snapshot => {
-            currentGrids = [];
-            snapshot.forEach(doc => {
-                currentGrids.push({ id: doc.id, ...doc.data() });
-            });
-        })
-        .catch(error => {
-            console.error('Error loading grids:', error);
-            showNotification('Error loading grids: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/grids`, { headers: authHeaders() });
+        if (!res.ok) throw new Error(await res.text());
+        currentGrids = await res.json();
+    } catch (error) {
+        console.error('Error loading grids:', error);
+        showNotification('Error loading grids: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function loadGridLayout(deviceId) {
@@ -1333,42 +1092,27 @@ function selectMediaBox(mediaBoxId) {
     assignMediaBoxToGrid(selectedDeviceId, selectedGridPosition, mediaBoxId);
 }
 
-function assignMediaBoxToGrid(deviceId, position, mediaBoxId) {
-    if (!db) return;
-    
+async function assignMediaBoxToGrid(deviceId, position, mediaBoxId) {
     showLoading(true);
-    
-    // Find the grid document
     const device = currentDevices.find(d => d.deviceId === deviceId);
     const gridId = device.grids[position - 1];
-    
-    // Update the grid
-    db.collection('grids').doc(gridId).update({ mediaBoxId: mediaBoxId })
-        .then(() => {
-            // Update local data
-            const grid = currentGrids.find(g => g.gridId === gridId);
-            if (grid) {
-                grid.mediaBoxId = mediaBoxId;
-            }
-            
-            // Reload the grid layout
-            loadGridLayout(deviceId);
-            
-            // Clear selections
-            selectedGridPosition = null;
-            selectedDeviceId = null;
-            selectedMediaBoxId = null;
-            
-            const mediaBox = currentMediaBoxes.find(mb => mb.mediaBoxId === mediaBoxId);
-            showNotification(`"${mediaBox.name}" assigned to grid position ${position}!`, 'success');
-        })
-        .catch(error => {
-            console.error('Error assigning media box:', error);
-            showNotification('Error assigning media box: ' + error.message, 'error');
-        })
-        .finally(() => {
-            showLoading(false);
-        });
+    try {
+        const res = await fetch(`${apiBase}/grids?gridId=${encodeURIComponent(gridId)}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ mediaBoxId }) });
+        if (!res.ok) throw new Error(await res.text());
+        const grid = currentGrids.find(g => g.gridId === gridId);
+        if (grid) grid.mediaBoxId = mediaBoxId;
+        loadGridLayout(deviceId);
+        selectedGridPosition = null;
+        selectedDeviceId = null;
+        selectedMediaBoxId = null;
+        const mediaBox = currentMediaBoxes.find(mb => mb.mediaBoxId === mediaBoxId);
+        showNotification(`"${mediaBox.name}" assigned to grid position ${position}!`, 'success');
+    } catch (error) {
+        console.error('Error assigning media box:', error);
+        showNotification('Error assigning media box: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // ===== Preview Section =====
@@ -1497,8 +1241,7 @@ function saveAllChanges() {
 // ===== Global Functions (called from HTML) =====
 window.completeStep = completeStep;
 window.toggleService = toggleService;
-window.saveFirebaseConfig = saveFirebaseConfig;
-window.testFirebaseConnection = testFirebaseConnection;
+window.testApiConnection = testApiConnection;
 window.addDevice = addDevice;
 window.editDevice = editDevice;
 window.deleteDevice = deleteDevice;
