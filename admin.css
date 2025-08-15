@@ -51,6 +51,24 @@ body {
     color: #000000 !important;
 }
 
+/* Fix white text in white boxes - make all inputs black text */
+input, textarea, select {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    border: 2px solid #000000 !important;
+}
+
+/* Fix all text colors to be readable */
+.setup-step, .step-content, .step-content p, .step-content ol, .step-content li {
+    color: #000000 !important;
+}
+
+/* Make sure buttons have readable contrast */
+.btn-primary, .btn-secondary, .btn-danger {
+    color: #ffffff !important;
+    font-weight: bold !important;
+}
+
 .large-text body, body.large-text {
     font-size: 125%;
 }
