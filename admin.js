@@ -69,12 +69,8 @@ function setupEventListeners() {
         });
     });
     
-    // Firebase setup
+    // API connection test
     document.getElementById('test-connection')?.addEventListener('click', testApiConnection);
-    
-    // File upload
-    // DEPRECATED in favor of "Add by URL"
-    // setupFileUpload();
     
     // Device management
     document.getElementById('device-form')?.addEventListener('submit', handleDeviceSubmit);
