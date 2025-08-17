@@ -33,6 +33,7 @@ exports.handler = async (event, context) => {
 
     return methodNotAllowed();
   } catch (err) {
+    console.error('Device API Error:', err);
     return error(err);
   }
 };

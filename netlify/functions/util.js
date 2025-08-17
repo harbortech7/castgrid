@@ -45,9 +45,18 @@ function pathFor(tenant, file) {
 }
 
 async function readTenantJson(tenant, file, defaults = []) {
-  const { repo, token, branch } = getRepoConfig();
-  const { data } = await readJson({ repo, path: pathFor(tenant, file), token, ref: branch });
-  return data || defaults;
+  try {
+    const { repo, token, branch } = getRepoConfig();
+    const { data } = await readJson({ repo, path: pathFor(tenant, file), token, ref: branch });
+    return data || defaults;
+  } catch (err) {
+    // If file doesn't exist, return defaults
+    if (err.message.includes('404') || err.message.includes('not found')) {
+      return defaults;
+    }
+    // For other errors, provide more context
+    throw new Error(`Failed to read ${file} for tenant ${tenant}: ${err.message}`);
+  }
 }
 
 async function writeTenantJson(tenant, file, data, message) {

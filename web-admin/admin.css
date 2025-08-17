@@ -905,8 +905,17 @@ input, textarea, select {
     grid-template-columns: 1fr 1fr;
 }
 
+.grid-layout.layout-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
 .grid-layout.layout-4 {
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.grid-layout.layout-6 {
+    grid-template-columns: 1fr 1fr 1fr;
     grid-template-rows: 1fr 1fr;
 }
 
