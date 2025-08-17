@@ -362,6 +362,14 @@ function addDevice() {
         // Reset form
         document.getElementById('device-form').reset();
         modal.classList.add('show');
+        modal.style.display = 'flex'; // Ensure modal is visible
+        
+        // Add click outside to close functionality
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModal('device-modal');
+            }
+        });
     }
 }
 
@@ -370,23 +378,29 @@ async function handleDeviceSubmit(e) {
     const deviceId = document.getElementById('device-id').value.trim();
     const location = document.getElementById('device-location').value.trim();
     const gridCount = parseInt(document.getElementById('device-grid-count').value);
+    
     if (!deviceId || !location) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
+    
+    // Check for duplicate device ID
     if (currentDevices.find(d => d.deviceId === deviceId) && !document.getElementById('device-id').readOnly) {
         showNotification('Device ID already exists. Please choose a unique ID.', 'error');
-        // No need to close the modal here, let the user correct the ID.
+        // Don't close the modal - let user correct the ID or cancel manually
         return;
     }
+    
     showLoading(true);
     const device = { deviceId, location, grids: generateGridIds(deviceId, gridCount) };
+    
     try {
         // create default grids
         await saveGridsForDevice(device);
         // upsert device
         const res = await fetch(`${apiBase}/devices`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(device) });
         if (!res.ok) throw new Error(await res.text());
+        
         currentDevices.push(device);
         renderDevices();
         updateDeviceSelectors();
@@ -395,6 +409,7 @@ async function handleDeviceSubmit(e) {
     } catch (error) {
         console.error('Error creating device:', error);
         showNotification('Error creating device: ' + error.message, 'error');
+        // Don't close modal on error - let user see the error and decide what to do
     } finally {
         showLoading(false);
     }
@@ -1338,14 +1353,21 @@ function showNotification(message, type = 'info') {
 }
 
 function closeModal(modalId) {
+    console.log('closeModal called with:', modalId);
     const modal = document.getElementById(modalId);
     if (modal) {
+        console.log('Modal found, closing...');
         modal.classList.remove('show');
+        modal.style.display = 'none'; // Force hide the modal
         
         // Reset form if it's a device modal
         if (modalId === 'device-modal') {
+            document.getElementById('device-form').reset();
             document.getElementById('device-id').readOnly = false;
         }
+        console.log('Modal closed successfully');
+    } else {
+        console.log('Modal not found:', modalId);
     }
 }
 
