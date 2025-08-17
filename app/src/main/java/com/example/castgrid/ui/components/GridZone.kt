@@ -115,20 +115,50 @@ private fun VideoPlayer(
     onPlaybackCompleted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // For now, show a placeholder since ExoPlayer setup requires more complex implementation
-    // This would be replaced with actual ExoPlayer integration
+    var localMediaPath by remember { mutableStateOf<String?>(null) }
+    var isDownloading by remember { mutableStateOf(false) }
+    
+    // Try to get local file path for offline playback
+    LaunchedEffect(mediaItem.mediaId) {
+        if (mediaItem.isLocal) {
+            // This would be called from the ViewModel in a real implementation
+            // For now, we'll simulate local file availability
+            localMediaPath = mediaItem.localPath
+        }
+    }
+    
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.DarkGray),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "🎥 VIDEO\n${mediaItem.filename}\n${mediaItem.duration}s",
-            color = Color.White,
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center
-        )
+        when {
+            localMediaPath != null -> {
+                Text(
+                    text = "🎥 LOCAL VIDEO\n${mediaItem.filename}\n${mediaItem.duration}s\n📁 ${mediaItem.fileName}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center
+                )
+            }
+            isDownloading -> {
+                Text(
+                    text = "📥 DOWNLOADING\n${mediaItem.filename}",
+                    color = Color.Yellow,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center
+                )
+            }
+            else -> {
+                Text(
+                    text = "🎥 VIDEO\n${mediaItem.filename}\n${mediaItem.duration}s\n🌐 Streaming from URL",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
     
     // Auto-advance after video duration
@@ -148,6 +178,14 @@ private fun ImagePlayer(
     modifier: Modifier = Modifier
 ) {
     var imageLoaded by remember(mediaItem.mediaId) { mutableStateOf(false) }
+    var localMediaPath by remember { mutableStateOf<String?>(null) }
+    
+    // Try to get local file path for offline playback
+    LaunchedEffect(mediaItem.mediaId) {
+        if (mediaItem.isLocal) {
+            localMediaPath = mediaItem.localPath
+        }
+    }
     
     Box(
         modifier = modifier
@@ -155,13 +193,24 @@ private fun ImagePlayer(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        // AsyncImage for actual image loading (using Coil)
-        AsyncImageWithPlaceholder(
-            imageUrl = mediaItem.url,
-            contentDescription = mediaItem.filename,
-            onImageLoaded = { imageLoaded = true },
-            modifier = Modifier.fillMaxSize()
-        )
+        when {
+            localMediaPath != null -> {
+                Text(
+                    text = "🖼️ LOCAL IMAGE\n${mediaItem.filename}\n📁 ${mediaItem.fileName}\n${mediaItem.duration}s",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center
+                )
+            }
+            else -> {
+                AsyncImageWithPlaceholder(
+                    imageUrl = mediaItem.url,
+                    contentDescription = mediaItem.filename,
+                    onImageLoaded = { imageLoaded = true },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
     }
     
     // Auto-advance after image duration

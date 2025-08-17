@@ -203,7 +203,23 @@
                 <section id="media-section" class="content-section">
                     <div class="section-header">
                         <h2><i class="fas fa-photo-video"></i> Media Library</h2>
-                        <p>Manage your videos and images by adding them via public URL.</p>
+                        <p>Upload and manage your videos and images</p>
+                    </div>
+
+                    <!-- File Upload Area -->
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <p>Drag & drop media files here or click to browse</p>
+                        <p class="upload-info">Supported: MP4, AVI, MOV, JPG, PNG, GIF (Max: 50MB)</p>
+                    </div>
+                    
+                    <div class="media-actions">
+                        <input type="text" id="media-search" placeholder="Search media...">
+                        <button class="btn-primary" id="add-media-url-btn"><i class="fas fa-link"></i> Add by URL</button>
+                        <input type="file" id="media-upload" class="media-upload-input" multiple accept="video/*,image/*">
+                        <label for="media-upload" class="btn-secondary"><i class="fas fa-upload"></i> Upload Files</label>
                     </div>
 
                     <!-- Media Grid -->
@@ -213,12 +229,8 @@
                             <button class="filter-btn" data-filter="video">Videos</button>
                             <button class="filter-btn" data-filter="image">Images</button>
                         </div>
-                        <div class="media-actions">
-                            <input type="text" id="media-search" placeholder="Search media...">
-                            <button class="btn-primary" id="add-media-url-btn"><i class="fas fa-plus"></i> Add Media by URL</button>
-                        </div>
                     </div>
-
+                    
                     <div class="media-grid" id="media-grid">
                         <!-- Media items will be loaded here -->
                     </div>

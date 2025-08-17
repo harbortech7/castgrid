@@ -50,4 +50,12 @@ interface CastGridRepository {
     
     // Utility functions for playback logic
     fun getSortedMediaItems(mediaItems: List<MediaItem>): List<MediaItem>
+
+    // Media file management for offline playback
+    suspend fun downloadMediaFile(mediaItem: MediaItem): Result<String> // Returns local file path
+    suspend fun getLocalMediaPath(mediaItem: MediaItem): String?
+    suspend fun isMediaFileLocal(mediaItem: MediaItem): Boolean
+    suspend fun cleanupOldMediaFiles()
+    suspend fun getLocalStorageSize(): Long
+    suspend fun getAvailableStorageSpace(): Long
 } 

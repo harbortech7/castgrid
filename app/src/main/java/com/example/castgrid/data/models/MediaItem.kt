@@ -20,7 +20,25 @@ data class MediaItem(
     val url: String = "",
     
     @SerializedName("duration")
-    val duration: Int = 30 // Duration in seconds for images, actual duration for videos
+    val duration: Int = 30, // Duration in seconds for images, actual duration for videos
+    
+    @SerializedName("fileName")
+    val fileName: String? = null,
+    
+    @SerializedName("fileSize")
+    val fileSize: Long? = null,
+    
+    @SerializedName("uploadedAt")
+    val uploadedAt: String? = null,
+    
+    @SerializedName("localPath")
+    val localPath: String? = null,
+    
+    @SerializedName("isLocal")
+    val isLocal: Boolean = false,
+    
+    @SerializedName("downloadStatus")
+    val downloadStatus: String = "pending" // pending, downloading, completed, failed
 ) {
     // Firestore requires a no-argument constructor
     constructor() : this("", MediaType.IMAGE, "", "", 30)

@@ -11,6 +11,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Firebase implementation of CastGridRepository
@@ -437,5 +442,104 @@ class FirebaseCastGridRepository : CastGridRepository {
      */
     override fun getSortedMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
         return mediaItems.sortedBy { it.filename }
+    }
+
+    override suspend fun downloadMediaFile(mediaItem: MediaItem): Result<String> {
+        return try {
+            val localDir = File(context.getExternalFilesDir(null), "CastGrid/media")
+            if (!localDir.exists()) {
+                localDir.mkdirs()
+            }
+            
+            val localFile = File(localDir, mediaItem.fileName ?: "${mediaItem.mediaId}.${getFileExtension(mediaItem.type)}")
+            
+            // Download file from GitHub if not already local
+            if (!localFile.exists()) {
+                val downloadUrl = getMediaDownloadUrl(mediaItem)
+                downloadFileFromUrl(downloadUrl, localFile)
+            }
+            
+            Result.success(localFile.absolutePath)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getLocalMediaPath(mediaItem: MediaItem): String? {
+        val localDir = File(context.getExternalFilesDir(null), "CastGrid/media")
+        val localFile = File(localDir, mediaItem.fileName ?: "${mediaItem.mediaId}.${getFileExtension(mediaItem.type)}")
+        return if (localFile.exists()) localFile.absolutePath else null
+    }
+
+    override suspend fun isMediaFileLocal(mediaItem: MediaItem): Boolean {
+        return getLocalMediaPath(mediaItem) != null
+    }
+
+    override suspend fun cleanupOldMediaFiles() {
+        val localDir = File(context.getExternalFilesDir(null), "CastGrid/media")
+        if (!localDir.exists()) return
+        
+        val maxAge = 30 * 24 * 60 * 60 * 1000L // 30 days
+        val currentTime = System.currentTimeMillis()
+        
+        localDir.listFiles()?.forEach { file ->
+            if (currentTime - file.lastModified() > maxAge) {
+                file.delete()
+            }
+        }
+    }
+
+    override suspend fun getLocalStorageSize(): Long {
+        val localDir = File(context.getExternalFilesDir(null), "CastGrid/media")
+        if (!localDir.exists()) return 0L
+        
+        return localDir.walkTopDown()
+            .filter { it.isFile }
+            .map { it.length() }
+            .sum()
+    }
+
+    override suspend fun getAvailableStorageSpace(): Long {
+        val localDir = context.getExternalFilesDir(null)
+        return localDir?.freeSpace ?: 0L
+    }
+
+    private fun getFileExtension(mediaType: String): String {
+        return when (mediaType.lowercase()) {
+            "video" -> "mp4"
+            "image" -> "jpg"
+            else -> "mp4"
+        }
+    }
+
+    private suspend fun getMediaDownloadUrl(mediaItem: MediaItem): String {
+        // Construct GitHub raw content URL
+        val repo = "harbortech7/castgrid" // This should come from config
+        val branch = "main"
+        val path = "data/${getTenantId()}/${mediaItem.fileName}"
+        return "https://raw.githubusercontent.com/$repo/$branch/$path"
+    }
+
+    private suspend fun downloadFileFromUrl(url: String, localFile: File) {
+        withContext(Dispatchers.IO) {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 30000
+            connection.readTimeout = 30000
+            
+            try {
+                connection.inputStream.use { input ->
+                    localFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
+    private fun getTenantId(): String {
+        // This should come from device configuration or user settings
+        return "default" // Placeholder
     }
 } 

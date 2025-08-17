@@ -2,6 +2,37 @@
 
 All notable changes to the CastGrid project are documented in this file.
 
+## [1.3.0] - 2025-08-16 - Local File Storage & Offline Playback
+
+### Added
+- **Local File Storage**: Implemented direct file upload to GitHub repository with base64 encoding
+- **Offline Android TV Playback**: Media files are downloaded and stored locally on Android TV devices
+- **File Upload System**: Restored drag & drop file upload with proper backend integration
+- **Local Media Management**: Added methods for downloading, caching, and managing local media files
+- **Storage Management**: Automatic cleanup of old media files and storage space monitoring
+
+### Changed
+- **Media Upload Workflow**: Replaced URL-only approach with actual file uploads to GitHub
+- **Android TV Media Handling**: Updated to prioritize local files over streaming URLs
+- **MediaItem Model**: Added new fields for fileName, fileSize, uploadedAt, localPath, isLocal, and downloadStatus
+- **Repository Interface**: Extended with local file management methods for offline playback
+
+### Technical Improvements
+- **GitHub File Storage**: Files are stored directly in the repository under `data/{tenant}/media/` structure
+- **Base64 Encoding**: Small files (<50MB) are encoded and stored as text in GitHub
+- **Local File Paths**: Android TV uses `/storage/emulated/0/CastGrid/media/` for local storage
+- **Automatic Downloads**: Media files are automatically downloaded when first accessed
+- **Storage Cleanup**: 30-day automatic cleanup of unused media files
+
+### Benefits
+- **100% Offline Capability**: Android TV devices work without internet connection
+- **No External Dependencies**: Media files are stored in your own GitHub repository
+- **Faster Playback**: Local files load instantly compared to streaming
+- **Bandwidth Savings**: Files are downloaded once, then played locally
+- **Full Control**: You own and control all media content
+
+---
+
 ## [1.2.1] - 2025-08-16 - UI and Accessibility Hotfixes
 
 ### Fixed
