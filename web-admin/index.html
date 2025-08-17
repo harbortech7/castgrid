@@ -376,6 +376,53 @@
                 }
             }, 100);
         })();
+        
+        // ULTIMATE FIX - Override everything
+        (function() {
+            // Override the global closeModal function immediately
+            window.closeModal = function(modalId) {
+                console.log('EMERGENCY closeModal called with:', modalId);
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    console.log('Modal found, forcing close...');
+                    modal.style.display = 'none';
+                    modal.style.zIndex = '1000';
+                    modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    
+                    if (modalId === 'device-modal') {
+                        const form = document.getElementById('device-form');
+                        if (form) form.reset();
+                        const deviceId = document.getElementById('device-id');
+                        if (deviceId) deviceId.readOnly = false;
+                    }
+                    console.log('Modal force-closed successfully');
+                }
+            };
+            
+            // Add event listeners to all close buttons
+            setTimeout(function() {
+                const closeButtons = document.querySelectorAll('[onclick*="closeModal"], .close, [data-dismiss="modal"]');
+                closeButtons.forEach(function(btn) {
+                    btn.onclick = function() {
+                        const modal = btn.closest('.modal') || document.getElementById('device-modal');
+                        if (modal) {
+                            window.closeModal(modal.id || 'device-modal');
+                        }
+                    };
+                });
+                
+                // Fix modal backdrop clicks
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(function(modal) {
+                    modal.onclick = function(e) {
+                        if (e.target === modal) {
+                            window.closeModal(modal.id || 'device-modal');
+                        }
+                    };
+                });
+            }, 200);
+        })();
     </script>
 </body>
 </html> 
