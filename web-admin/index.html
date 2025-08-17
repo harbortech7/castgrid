@@ -346,6 +346,36 @@
                 };
             }
         });
+        
+        // IMMEDIATE FIX - Run right now
+        (function() {
+            // Override closeModal immediately
+            window.closeModal = function(modalId) {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.style.zIndex = '1000';
+                    if (modalId === 'device-modal') {
+                        const form = document.getElementById('device-form');
+                        if (form) form.reset();
+                        const deviceId = document.getElementById('device-id');
+                        if (deviceId) deviceId.readOnly = false;
+                    }
+                }
+            };
+            
+            // Fix existing modals
+            setTimeout(function() {
+                const deviceModal = document.getElementById('device-modal');
+                if (deviceModal) {
+                    deviceModal.onclick = function(e) {
+                        if (e.target === deviceModal) {
+                            window.closeModal('device-modal');
+                        }
+                    };
+                }
+            }, 100);
+        })();
     </script>
 </body>
 </html> 
