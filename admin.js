@@ -73,7 +73,8 @@ function setupEventListeners() {
     document.getElementById('test-connection')?.addEventListener('click', testApiConnection);
     
     // File upload
-    setupFileUpload();
+    // DEPRECATED in favor of "Add by URL"
+    // setupFileUpload();
     
     // Device management
     document.getElementById('device-form')?.addEventListener('submit', handleDeviceSubmit);
@@ -479,92 +480,72 @@ function updateDeviceSelectors() {
 
 // ===== Media Library Management =====
 
-function setupFileUpload() {
-    const uploadArea = document.getElementById('upload-area');
-    const fileInput = document.getElementById('file-input');
-    
-    if (!uploadArea || !fileInput) return;
-    
-    // Click to upload
-    uploadArea.addEventListener('click', () => fileInput.click());
-    
-    // File input change
-    fileInput.addEventListener('change', (e) => {
-        handleFiles(e.target.files);
-    });
-    
-    // Drag and drop
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadArea.classList.add('dragover');
-    });
-    
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('dragover');
-    });
-    
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
-    });
-}
+function setupMediaLibrary() {
+    const addMediaUrlBtn = document.getElementById('add-media-url-btn');
+    const addMediaUrlModal = document.getElementById('add-media-url-modal');
+    const closeModalBtn = addMediaUrlModal.querySelector('.close-button');
+    const cancelModalBtn = addMediaUrlModal.querySelector('.cancel-btn');
+    const addMediaUrlForm = document.getElementById('add-media-url-form');
 
-function handleFiles(files) {
-    if (!storage) {
-        showNotification('Firebase not connected', 'error');
-        return;
+    addMediaUrlBtn.addEventListener('click', () => {
+        addMediaUrlModal.style.display = 'flex';
+    });
+
+    const closeModal = () => {
+        addMediaUrlModal.style.display = 'none';
+        addMediaUrlForm.reset();
     }
-    
-    const validFiles = Array.from(files).filter(file => {
-        const isValidType = file.type.startsWith('video/') || file.type.startsWith('image/');
-        const isValidSize = file.size <= 50 * 1024 * 1024; // 50MB limit
-        
-        if (!isValidType) {
-            showNotification(`${file.name}: Invalid file type`, 'error');
-            return false;
+
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelModalBtn.addEventListener('click', closeModal);
+    window.addEventListener('click', (event) => {
+        if (event.target == addMediaUrlModal) {
+            closeModal();
         }
-        
-        if (!isValidSize) {
-            showNotification(`${file.name}: File too large (max 50MB)`, 'error');
-            return false;
-        }
-        
-        return true;
     });
-    
-    if (validFiles.length === 0) return;
-    
-    // Upload files
-    validFiles.forEach(file => uploadFile(file));
+
+    addMediaUrlForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const url = document.getElementById('media-url-input').value;
+        const name = document.getElementById('media-name-input').value;
+        const type = document.getElementById('media-type-select').value;
+        const mediaId = `media_${Date.now()}`;
+
+        const newMediaItem = {
+            mediaId,
+            name,
+            url,
+            type,
+            createdAt: new Date().toISOString()
+        };
+
+        try {
+            showLoading('Adding media item...');
+            const response = await fetch(`${apiBase}/media-items`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify(newMediaItem)
+            });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`Server responded with ${response.status}: ${errorBody}`);
+            }
+            await response.json();
+            showToast('Media item added successfully!', 'success');
+            loadMedia();
+            closeModal();
+        } catch (error) {
+            console.error('Error adding media item:', error);
+            showToast(`Error adding media item: ${error.message}`, 'error');
+        } finally {
+            hideLoading();
+        }
+    });
+
+    loadMedia();
 }
 
-function uploadFile(file) {
-    const progressContainer = document.getElementById('upload-progress');
-    const progressId = 'progress_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    const progressItem = document.createElement('div');
-    progressItem.className = 'progress-item';
-    progressItem.id = progressId;
-    progressItem.innerHTML = `
-        <div class="progress-header">
-            <span>${file.name}</span>
-            <span class="progress-percentage">Uploading...</span>
-        </div>
-        <div class="progress-bar">
-            <div class="progress-fill" style="width: 100%"></div>
-        </div>
-    `;
-    progressContainer.appendChild(progressItem);
-
-    // NOTE: Replace this with Netlify Large Media/Blobs upload or external CDN. For now, we cannot upload directly.
-    showNotification('Direct uploads not configured. Please host media on a CDN and add by URL in Media Items.', 'warning');
-}
-
-function generateMediaId() {
-    return 'media_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
-async function loadMediaLibrary() {
+async function loadMedia() {
     showLoading(true);
     try {
         const res = await fetch(`${apiBase}/media-items`, { headers: authHeaders() });
@@ -573,7 +554,7 @@ async function loadMediaLibrary() {
         renderMediaGrid();
     } catch (error) {
         console.error('Error loading media:', error);
-        showNotification('Error loading media: ' + error.message, 'error');
+        showToast('Error loading media: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
@@ -657,7 +638,7 @@ function previewMedia(mediaId) {
     modal.innerHTML = `
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
-                <h3>Preview: ${media.filename}</h3>
+                <h3>Preview: ${media.name}</h3>
                 <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
             </div>
             <div style="padding: 1rem;">
@@ -692,12 +673,12 @@ function editMedia(mediaId) {
             <form onsubmit="updateMedia(event, '${mediaId}')">
                 <div style="padding: 1.5rem;">
                     <div class="form-group">
-                        <label>Filename:</label>
-                        <input type="text" id="edit-filename" value="${media.filename}" required>
+                        <label>Name:</label>
+                        <input type="text" id="edit-name" value="${media.name}" required>
                     </div>
                     <div class="form-group">
-                        <label>Duration (seconds):</label>
-                        <input type="number" id="edit-duration" value="${media.duration}" min="1" max="300" required>
+                        <label>URL:</label>
+                        <input type="text" id="edit-url" value="${media.url}" required>
                     </div>
                     <div class="modal-actions">
                         <button type="button" class="btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
@@ -713,25 +694,25 @@ function editMedia(mediaId) {
 async function updateMedia(event, mediaId) {
     event.preventDefault();
 
-    const filename = document.getElementById('edit-filename').value.trim();
-    const duration = parseInt(document.getElementById('edit-duration').value);
+    const name = document.getElementById('edit-name').value.trim();
+    const url = document.getElementById('edit-url').value.trim();
 
-    if (!filename) { showNotification('Filename is required', 'error'); return; }
+    if (!name || !url) { showToast('Name and URL are required', 'error'); return; }
 
     showLoading(true);
     try {
         const existing = currentMediaItems.find(m => m.mediaId === mediaId) || {};
-        const updated = { ...existing, mediaId, filename, duration };
+        const updated = { ...existing, name, url };
         const res = await fetch(`${apiBase}/media-items`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(updated) });
         if (!res.ok) throw new Error(await res.text());
         const idx = currentMediaItems.findIndex(m => m.mediaId === mediaId);
         if (idx >= 0) currentMediaItems[idx] = updated;
         renderMediaGrid();
         document.querySelector('.modal.show')?.remove();
-        showNotification('Media updated successfully!', 'success');
+        showToast('Media updated successfully!', 'success');
     } catch (error) {
         console.error('Error updating media:', error);
-        showNotification('Error updating media: ' + error.message, 'error');
+        showToast('Error updating media: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
@@ -740,7 +721,7 @@ async function updateMedia(event, mediaId) {
 async function deleteMedia(mediaId) {
     const media = currentMediaItems.find(m => m.mediaId === mediaId);
     if (!media) return;
-    if (!confirm(`Are you sure you want to delete "${media.filename}"? This action cannot be undone.`)) return;
+    if (!confirm(`Are you sure you want to delete "${media.name}"? This action cannot be undone.`)) return;
 
     showLoading(true);
     try {
