@@ -115,6 +115,9 @@ function setupEventListeners() {
     
     // Global save button
     document.getElementById('save-all')?.addEventListener('click', saveAllChanges);
+
+    // File Upload Setup
+    setupFileUpload();
 }
 
 // ===== Navigation =====
@@ -138,7 +141,7 @@ function navigateToSection(sectionName) {
             loadDevices();
             break;
         case 'media':
-            loadMediaLibrary();
+            setupMediaLibrary();
             break;
         case 'mediaboxes':
             loadMediaBoxes();
@@ -542,66 +545,194 @@ function setupMediaLibrary() {
     loadMedia();
 }
 
-async function loadMedia() {
-    showLoading(true);
-    try {
-        const res = await fetch(`${apiBase}/media-items`, { headers: authHeaders() });
-        if (!res.ok) throw new Error(await res.text());
-        currentMediaItems = await res.json();
-        renderMediaGrid();
-    } catch (error) {
-        console.error('Error loading media:', error);
-        showToast('Error loading media: ' + error.message, 'error');
-    } finally {
-        showLoading(false);
-    }
+// File Upload Setup
+function setupFileUpload() {
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('media-upload');
+    
+    // Drag and drop events
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = Array.from(e.dataTransfer.files);
+        handleFiles(files);
+    });
+    
+    // Click to browse
+    uploadArea.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        handleFiles(files);
+    });
 }
 
-function renderMediaGrid(filteredItems = null) {
-    const grid = document.getElementById('media-grid');
-    if (!grid) return;
-    
-    const items = filteredItems || currentMediaItems;
-    
-    if (items.length === 0) {
-        grid.innerHTML = `
-            <div style="grid-column: 1/-1; text-align: center; padding: 2rem;">
-                <i class="fas fa-photo-video" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
-                <h3 style="color: #666;">No media files</h3>
-                <p style="color: #999;">Upload videos and images to get started</p>
-            </div>
-        `;
-        return;
+// Handle file uploads
+async function handleFiles(files) {
+    for (const file of files) {
+        try {
+            showLoading(`Uploading ${file.name}...`);
+            
+            // Check file size (50MB limit)
+            if (file.size > 50 * 1024 * 1024) {
+                throw new Error(`File ${file.name} is too large. Maximum size is 50MB.`);
+            }
+            
+            // Check file type
+            const fileType = getFileType(file);
+            if (!fileType) {
+                throw new Error(`File type not supported: ${file.name}`);
+            }
+            
+            // Upload file to GitHub (base64 encoded for small files)
+            const fileContent = await readFileAsBase64(file);
+            const fileName = `media/${getTenant()}/${Date.now()}_${file.name}`;
+            
+            // Create media item record
+            const mediaItem = {
+                mediaId: `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: file.name,
+                fileName: fileName,
+                fileSize: file.size,
+                type: fileType,
+                uploadedAt: new Date().toISOString(),
+                localPath: `/storage/emulated/0/CastGrid/${fileName}`, // Android local path
+                isLocal: true
+            };
+            
+            // Save to GitHub
+            const response = await fetch(`${apiBase}/media-items`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify(mediaItem)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+            
+            // Save file content to GitHub
+            await saveFileToGitHub(fileName, fileContent, file.type);
+            
+            showToast(`${file.name} uploaded successfully!`, 'success');
+            
+        } catch (error) {
+            console.error('Upload error:', error);
+            showToast(`Error uploading ${file.name}: ${error.message}`, 'error');
+        } finally {
+            hideLoading();
+        }
     }
     
-    grid.innerHTML = items.map(item => `
-        <div class="media-item" data-media-id="${item.mediaId}" data-type="${item.type}">
-            <div class="media-preview">
-                ${item.type === 'image' ? 
-                    `<img src="${item.url}" alt="${item.filename}" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\"fas fa-image\\" style=\\"font-size: 2rem; color: #ccc;\\"></i>'">` :
-                    `<i class="fas fa-play-circle" style="font-size: 2rem; color: #ccc;"></i>`
-                }
-                <div class="media-type-icon">
-                    <i class="fas fa-${item.type === 'video' ? 'video' : 'image'}"></i>
-                </div>
-            </div>
-            <div class="media-info">
-                <h4 class="media-name" title="${item.filename}">${item.filename}</h4>
-                <p class="media-details">${item.type} • ${item.duration}s</p>
-            </div>
-            <div class="media-actions">
-                <button onclick="previewMedia('${item.mediaId}')" title="Preview">
-                    <i class="fas fa-eye"></i>
-                </button>
-                <button onclick="editMedia('${item.mediaId}')" title="Edit">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button onclick="deleteMedia('${item.mediaId}')" title="Delete">
-                    <i class="fas fa-trash"></i>
-                </button>
+    // Refresh media library
+    loadMedia();
+}
+
+// Read file as base64
+function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Get file type from extension
+function getFileType(file) {
+    const extension = file.name.split('.').pop().toLowerCase();
+    const videoTypes = ['mp4', 'avi', 'mov', 'mkv', 'webm'];
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+    
+    if (videoTypes.includes(extension)) return 'video';
+    if (imageTypes.includes(extension)) return 'image';
+    return null;
+}
+
+// Save file to GitHub
+async function saveFileToGitHub(fileName, content, mimeType) {
+    const response = await fetch(`${apiBase}/upload-file`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+            fileName: fileName,
+            content: content,
+            mimeType: mimeType
+        })
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to save file to GitHub');
+    }
+    
+    return response.json();
+}
+
+// Load media items
+function loadMedia() {
+    fetch(`${apiBase}/media-items`, {
+        headers: authHeaders()
+    })
+    .then(response => response.json())
+    .then(mediaItems => {
+        displayMediaItems(mediaItems);
+    })
+    .catch(error => {
+        console.error('Error loading media:', error);
+        showToast('Error loading media library', 'error');
+    });
+}
+
+// Display media items in grid
+function displayMediaItems(mediaItems) {
+    const mediaGrid = document.getElementById('media-grid');
+    mediaGrid.innerHTML = '';
+    
+    mediaItems.forEach(item => {
+        const mediaItem = createMediaItemElement(item);
+        mediaGrid.appendChild(mediaItem);
+    });
+}
+
+// Create media item element
+function createMediaItemElement(item) {
+    const div = document.createElement('div');
+    div.className = 'media-item';
+    
+    const preview = item.type === 'image' 
+        ? `<img src="${item.fileName}" alt="${item.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+        : `<video src="${item.fileName}" muted></video>`;
+    
+    div.innerHTML = `
+        <div class="media-preview">
+            ${preview}
+            <div class="media-icon" style="display: ${item.type === 'image' ? 'none' : 'flex'}">
+                <i class="fas fa-${item.type === 'video' ? 'play' : 'image'}"></i>
             </div>
         </div>
-    `).join('');
+        <div class="media-info">
+            <div class="media-name">${item.name}</div>
+            <div class="media-type">${item.type}</div>
+            <div class="media-actions">
+                <button class="edit-btn" onclick="editMedia('${item.mediaId}')">Edit</button>
+                <button class="delete-btn" onclick="deleteMedia('${item.mediaId}')">Delete</button>
+            </div>
+        </div>
+    `;
+    
+    return div;
 }
 
 function filterMedia(type) {
