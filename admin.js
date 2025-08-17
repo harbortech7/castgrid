@@ -361,12 +361,20 @@ function addDevice() {
     if (modal) {
         // Reset form
         document.getElementById('device-form').reset();
-        modal.classList.add('show');
-        modal.style.display = 'flex'; // Ensure modal is visible
+        // Force show modal with direct display
+        modal.style.display = 'flex';
+        modal.style.zIndex = '1001';
         
         // Add click outside to close functionality
-        modal.addEventListener('click', function(e) {
+        modal.onclick = function(e) {
             if (e.target === modal) {
+                closeModal('device-modal');
+            }
+        };
+        
+        // Add escape key to close modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
                 closeModal('device-modal');
             }
         });
@@ -1352,13 +1360,16 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
+// ===== EMERGENCY MODAL FIX =====
+
 function closeModal(modalId) {
     console.log('closeModal called with:', modalId);
     const modal = document.getElementById(modalId);
     if (modal) {
         console.log('Modal found, closing...');
-        modal.classList.remove('show');
-        modal.style.display = 'none'; // Force hide the modal
+        // Force hide the modal with direct display manipulation
+        modal.style.display = 'none';
+        modal.style.zIndex = '1000';
         
         // Reset form if it's a device modal
         if (modalId === 'device-modal') {
@@ -1370,6 +1381,9 @@ function closeModal(modalId) {
         console.log('Modal not found:', modalId);
     }
 }
+
+// Override the global closeModal function
+window.closeModal = closeModal;
 
 function saveAllChanges() {
     showNotification('All changes are automatically saved to Firebase!', 'success');
