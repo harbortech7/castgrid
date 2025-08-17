@@ -504,11 +504,30 @@ function updateDeviceSelectors() {
 // ===== Media Library Management =====
 
 function setupMediaLibrary() {
+    console.log('Setting up Media Library...');
+    
+    // Check if required elements exist before proceeding
     const addMediaUrlBtn = document.getElementById('add-media-url-btn');
     const addMediaUrlModal = document.getElementById('add-media-url-modal');
+    
+    if (!addMediaUrlBtn) {
+        console.warn('Add Media URL button not found');
+        return;
+    }
+    
+    if (!addMediaUrlModal) {
+        console.warn('Add Media URL modal not found');
+        return;
+    }
+    
     const closeModalBtn = addMediaUrlModal.querySelector('.close-button');
     const cancelModalBtn = addMediaUrlModal.querySelector('.cancel-btn');
     const addMediaUrlForm = document.getElementById('add-media-url-form');
+    
+    if (!closeModalBtn || !cancelModalBtn || !addMediaUrlForm) {
+        console.warn('Required modal elements not found');
+        return;
+    }
 
     addMediaUrlBtn.addEventListener('click', () => {
         addMediaUrlModal.style.display = 'flex';
@@ -565,6 +584,7 @@ function setupMediaLibrary() {
         }
     });
 
+    // Load media after setup
     loadMedia();
 }
 
@@ -684,6 +704,22 @@ function getFileType(file) {
     return null;
 }
 
+// Show toast notification
+function showToast(message, type = 'info') {
+    console.log(`Toast [${type}]:`, message);
+    showNotification(message, type);
+}
+
+// Hide loading overlay
+function hideLoading() {
+    showLoading(false);
+}
+
+// Get current tenant from localStorage
+function getTenant() {
+    return localStorage.getItem('cg_admin_tenant') || 'default';
+}
+
 // Save file to GitHub
 async function saveFileToGitHub(fileName, content, mimeType) {
     const response = await fetch(`${apiBase}/upload-file`, {
@@ -705,49 +741,115 @@ async function saveFileToGitHub(fileName, content, mimeType) {
 
 // Load media items
 function loadMedia() {
+    console.log('Loading media items...');
+    
+    // Check if media grid exists
+    const mediaGrid = document.getElementById('media-grid');
+    if (!mediaGrid) {
+        console.warn('Media grid element not found');
+        return;
+    }
+    
+    // Show loading state
+    mediaGrid.innerHTML = '<div class="loading">Loading media...</div>';
+    
     fetch(`${apiBase}/media-items`, {
         headers: authHeaders()
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(mediaItems => {
+        console.log('Media items loaded:', mediaItems);
         displayMediaItems(mediaItems);
     })
     .catch(error => {
         console.error('Error loading media:', error);
+        
+        // Show error state instead of leaving loading
+        mediaGrid.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: #e74c3c; margin-bottom: 1rem;"></i>
+                <h3>Error Loading Media</h3>
+                <p>${error.message}</p>
+                <button onclick="loadMedia()" class="btn-primary">Retry</button>
+            </div>
+        `;
+        
         showToast('Error loading media library', 'error');
     });
 }
 
 // Display media items in grid
 function displayMediaItems(mediaItems) {
+    console.log('Displaying media items:', mediaItems);
+    
     const mediaGrid = document.getElementById('media-grid');
+    if (!mediaGrid) {
+        console.warn('Media grid element not found');
+        return;
+    }
+    
+    // Clear the grid
     mediaGrid.innerHTML = '';
     
+    // Handle empty state
+    if (!mediaItems || mediaItems.length === 0) {
+        mediaGrid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1/-1; text-align: center; padding: 2rem;">
+                <i class="fas fa-photo-video" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
+                <h3 style="color: #666;">No media found</h3>
+                <p style="color: #999;">Upload your first video or image to get started</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display media items
     mediaItems.forEach(item => {
-        const mediaItem = createMediaItemElement(item);
-        mediaGrid.appendChild(mediaItem);
+        try {
+            const mediaItem = createMediaItemElement(item);
+            mediaGrid.appendChild(mediaItem);
+        } catch (error) {
+            console.error('Error creating media item element:', error, item);
+        }
     });
 }
 
 // Create media item element
 function createMediaItemElement(item) {
+    console.log('Creating media item element:', item);
+    
+    if (!item || !item.mediaId) {
+        console.error('Invalid media item:', item);
+        return null;
+    }
+    
     const div = document.createElement('div');
     div.className = 'media-item';
     
-    const preview = item.type === 'image' 
-        ? `<img src="${item.fileName}" alt="${item.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
-        : `<video src="${item.fileName}" muted></video>`;
+    // Safely get item properties with fallbacks
+    const name = item.name || item.filename || 'Unnamed Media';
+    const type = item.type || 'unknown';
+    const fileName = item.fileName || item.url || '';
+    
+    const preview = type === 'image' 
+        ? `<img src="${fileName}" alt="${name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+        : `<video src="${fileName}" muted></video>`;
     
     div.innerHTML = `
         <div class="media-preview">
             ${preview}
-            <div class="media-icon" style="display: ${item.type === 'image' ? 'none' : 'flex'}">
-                <i class="fas fa-${item.type === 'video' ? 'play' : 'image'}"></i>
+            <div class="media-icon" style="display: ${type === 'image' ? 'none' : 'flex'}">
+                <i class="fas fa-${type === 'video' ? 'play' : 'image'}"></i>
             </div>
         </div>
         <div class="media-info">
-            <div class="media-name">${item.name}</div>
-            <div class="media-type">${item.type}</div>
+            <div class="media-name">${name}</div>
+            <div class="media-type">${type}</div>
             <div class="media-actions">
                 <button class="edit-btn" onclick="editMedia('${item.mediaId}')">Edit</button>
                 <button class="delete-btn" onclick="deleteMedia('${item.mediaId}')">Delete</button>
