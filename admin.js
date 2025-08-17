@@ -348,7 +348,9 @@ function getGridLayoutName(gridCount) {
     switch(gridCount) {
         case 1: return 'Full';
         case 2: return 'Split';
+        case 3: return 'Triple';
         case 4: return 'Quad';
+        case 6: return 'Six';
         case 8: return 'Eight';
         default: return 'Custom';
     }
@@ -1181,8 +1183,12 @@ function getGridStyles(gridCount) {
             return 'grid-template-columns: 1fr;';
         case 2:
             return 'grid-template-columns: 1fr 1fr;';
+        case 3:
+            return 'grid-template-columns: 1fr 1fr 1fr;';
         case 4:
             return 'grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;';
+        case 6:
+            return 'grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr;';
         case 8:
             return 'grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr 1fr;';
         default:
