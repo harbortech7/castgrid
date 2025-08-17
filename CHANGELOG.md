@@ -2,6 +2,32 @@
 
 All notable changes to the CastGrid project are documented in this file.
 
+## [1.2.1] - 2025-08-16 - UI and Accessibility Hotfixes
+
+### Fixed
+- **API Error on New Tenant**: Resolved a crash when creating the first device for a new tenant. The backend now correctly handles cases where `devices.json` and other data files do not yet exist by creating them automatically.
+- **Stuck "Add Device" Modal**: Fixed a bug where the "Add Device" popup would get stuck if a user entered a duplicate Device ID. The modal now remains open, allowing the user to correct the ID or cancel the operation.
+- **Browser Dark Theme Conflict**: Implemented a universal light theme for the dashboard that overrides browser-level or OS-level dark modes. This ensures text and UI elements are always readable.
+- **Improved Media Upload UX**: Removed the confusing and non-functional "Drag & Drop" upload box. The UI now exclusively promotes the correct "Add Media by URL" workflow, making the user experience much clearer.
+
+### Added
+- **"Add Media by URL" Functionality**: Implemented a new modal and workflow for adding media to the library via a public URL, as direct uploads to GitHub are not supported.
+
+---
+
+## [1.2.0] - 2025-08-15 - Admin Access Code (No-Identity) Path
+
+### Added
+- Admin Access Code fallback for authentication via headers `X-Admin-Token` and `X-Tenant`.
+- Utility `getTenantFromEvent(event, context)` to resolve tenant from Identity or fallback headers/query.
+- Web Admin: inputs to save admin token and tenant locally; API calls now include headers when present.
+- Media update/delete now call Netlify Functions (`/media-items`) instead of Firebase.
+- Test API Connection button wired to call `/devices` with headers.
+
+### Notes
+- Set env vars on Netlify: `GITHUB_REPO`, `GITHUB_BRANCH`, `GITHUB_TOKEN`, `ADMIN_TOKEN`.
+- Public Android endpoint remains unauthenticated: `/.netlify/functions/public-layout/:tenant/:deviceId`.
+
 ## [1.1.0] - 2024-01-XX - Web Admin Dashboard Release
 
 ### 🌐 **New: Complete Web Admin Dashboard**
@@ -353,15 +379,3 @@ CastGrid/
 **🎉 CastGrid v1.1.0 - Complete Digital Signage System with Web Admin Dashboard!**
 
 *Production-ready solution with easy deployment, comprehensive management tools, and professional features for digital signage applications.* 
-## [1.2.0] - 2025-08-15 - Admin Access Code (No-Identity) Path
-
-### Added
-- Admin Access Code fallback for authentication via headers `X-Admin-Token` and `X-Tenant`.
-- Utility `getTenantFromEvent(event, context)` to resolve tenant from Identity or fallback headers/query.
-- Web Admin: inputs to save admin token and tenant locally; API calls now include headers when present.
-- Media update/delete now call Netlify Functions (`/media-items`) instead of Firebase.
-- Test API Connection button wired to call `/devices` with headers.
-
-### Notes
-- Set env vars on Netlify: `GITHUB_REPO`, `GITHUB_BRANCH`, `GITHUB_TOKEN`, `ADMIN_TOKEN`.
-- Public Android endpoint remains unauthenticated: `/.netlify/functions/public-layout/:tenant/:deviceId`.
