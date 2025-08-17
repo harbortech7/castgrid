@@ -8,7 +8,13 @@
   # Environment variables for build (if needed)
   NODE_VERSION = "18"
 
-# Redirect rules for SPA-like behavior
+# Skip redirect for API functions
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Redirect rules for SPA-like behavior  
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -50,7 +56,7 @@
 [[forms]]
   name = "feedback"
 
-# Edge functions (if needed for advanced features)
+# Netlify Functions
 [functions]
   directory = "netlify/functions"
 
