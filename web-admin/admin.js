@@ -375,8 +375,9 @@ async function handleDeviceSubmit(e) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
-    if (currentDevices.find(d => d.deviceId === deviceId)) {
-        showNotification('Device ID already exists', 'error');
+    if (currentDevices.find(d => d.deviceId === deviceId) && !document.getElementById('device-id').readOnly) {
+        showNotification('Device ID already exists. Please choose a unique ID.', 'error');
+        // No need to close the modal here, let the user correct the ID.
         return;
     }
     showLoading(true);
