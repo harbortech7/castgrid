@@ -203,19 +203,7 @@
                 <section id="media-section" class="content-section">
                     <div class="section-header">
                         <h2><i class="fas fa-photo-video"></i> Media Library</h2>
-                        <p>Upload and manage your videos and images</p>
-                    </div>
-
-                    <!-- Upload Area -->
-                    <div class="upload-area" id="upload-area">
-                        <div class="upload-content">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <h3>Drag & Drop Media Files</h3>
-                            <p>Or click to browse files</p>
-                            <p class="upload-info">Supports: MP4, AVI, MOV, JPG, PNG, GIF (Max 50MB per file)</p>
-                            <input type="file" id="file-input" multiple accept="video/*,image/*" aria-label="Upload media files">
-                        </div>
-                        <div class="upload-progress" id="upload-progress"></div>
+                        <p>Manage your videos and images by adding them via public URL.</p>
                     </div>
 
                     <!-- Media Grid -->
@@ -227,9 +215,7 @@
                         </div>
                         <div class="media-actions">
                             <input type="text" id="media-search" placeholder="Search media...">
-                            <button class="btn-secondary" id="add-media-url-btn">Add Media by URL</button>
-                            <input type="file" id="media-upload" class="media-upload-input" disabled>
-                            <label for="media-upload" class="btn-primary-disabled" title="Direct uploads are not supported. Use 'Add Media by URL'.">Upload Media (Disabled)</label>
+                            <button class="btn-primary" id="add-media-url-btn"><i class="fas fa-plus"></i> Add Media by URL</button>
                         </div>
                     </div>
 
