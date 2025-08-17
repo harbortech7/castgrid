@@ -138,7 +138,7 @@ function navigateToSection(sectionName) {
             loadDevices();
             break;
         case 'media':
-            loadMediaLibrary();
+            setupMediaLibrary();
             break;
         case 'mediaboxes':
             loadMediaBoxes();
