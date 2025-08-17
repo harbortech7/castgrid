@@ -2,6 +2,33 @@
 
 All notable changes to the CastGrid project are documented in this file.
 
+## [1.3.1] - 2025-08-16 - Emergency Modal Fix
+
+### Fixed
+- **Modal Closing Issue**: Resolved critical bug where "Add New Device" modal would get stuck and not close
+- **Multiple Close Methods**: Modal now closes properly via Cancel button, X button, clicking outside, and ESC key
+- **Emergency JavaScript Override**: Added immediate JavaScript fix that overrides broken modal functions
+- **Direct DOM Manipulation**: Uses direct style manipulation instead of CSS classes for reliable modal control
+
+### Technical Details
+- **Emergency Fix Applied**: Added JavaScript override directly in HTML that runs immediately on page load
+- **Multiple Fallback Layers**: Implemented 3-layer approach: immediate override, DOM ready listener, and timeout-based fix
+- **Force Close Methods**: Sets `display: none`, `visibility: hidden`, `opacity: 0`, and proper z-index
+- **Event Listener Override**: Replaces all close button event listeners with working versions
+- **Console Logging**: Added debugging to track modal operations
+
+### User Experience
+- **No More Stuck Modals**: Users can now properly close the device creation modal
+- **Multiple Escape Options**: Multiple ways to close modal (Cancel, X, click outside, ESC)
+- **Immediate Fix**: Works immediately without waiting for deployment delays
+- **Reliable Operation**: Modal opens and closes consistently
+
+### Files Modified
+- `web-admin/index.html` - Added emergency JavaScript fix
+- `web-admin/admin.js` - Updated modal functions with direct DOM manipulation
+
+---
+
 ## [1.3.0] - 2025-08-16 - Local File Storage & Offline Playback
 
 ### Added
