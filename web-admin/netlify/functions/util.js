@@ -50,12 +50,10 @@ async function readTenantJson(tenant, file, defaults = []) {
     const { data } = await readJson({ repo, path: pathFor(tenant, file), token, ref: branch });
     return data || defaults;
   } catch (err) {
-    // If file doesn't exist, return defaults
-    if (err.message.includes('404') || err.message.includes('not found')) {
-      return defaults;
-    }
-    // For other errors, provide more context
-    throw new Error(`Failed to read ${file} for tenant ${tenant}: ${err.message}`);
+    // If file doesn't exist (or any other read error), return defaults
+    // This makes the function more resilient for new tenants.
+    console.warn(`Could not read ${file} for tenant ${tenant}. Returning default value. Error: ${err.message}`);
+    return defaults;
   }
 }
 
