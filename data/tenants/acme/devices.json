@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "deviceId": "tv_a7f3k9m2_2024",
+    "location": "Main",
+    "grids": [
+      "tv_a7f3k9m2_2024_grid_1"
+    ]
+  }
+]
