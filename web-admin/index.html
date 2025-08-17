@@ -316,5 +316,36 @@
     
     <!-- Admin JavaScript -->
     <script src="admin.js"></script>
+    
+    <!-- TEMPORARY MODAL FIX - Remove after deployment -->
+    <script>
+        // Emergency modal fix - works immediately
+        function emergencyCloseModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                modal.style.zIndex = '1000';
+                if (modalId === 'device-modal') {
+                    document.getElementById('device-form').reset();
+                    document.getElementById('device-id').readOnly = false;
+                }
+            }
+        }
+        
+        // Override the broken closeModal function
+        window.closeModal = emergencyCloseModal;
+        
+        // Add click outside to close for existing modals
+        document.addEventListener('DOMContentLoaded', function() {
+            const deviceModal = document.getElementById('device-modal');
+            if (deviceModal) {
+                deviceModal.onclick = function(e) {
+                    if (e.target === deviceModal) {
+                        emergencyCloseModal('device-modal');
+                    }
+                };
+            }
+        });
+    </script>
 </body>
 </html> 
