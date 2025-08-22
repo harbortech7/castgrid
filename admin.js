@@ -1078,181 +1078,90 @@ function setupMediaLibrary() {
     console.log('Setting up Media Library...');
     
     // Check if required elements exist before proceeding
-    const addMediaUrlBtn = document.getElementById('add-media-url-btn');
-    const addMediaUrlModal = document.getElementById('add-media-url-modal');
+    const addMediaUrlBtn = document.getElementById('addMediaUrlBtn');
     
     if (!addMediaUrlBtn) {
         console.warn('Add Media URL button not found');
         return;
     }
     
-    if (!addMediaUrlModal) {
-        console.warn('Add Media URL modal not found');
-        return;
-    }
-    
-    const closeModalBtn = addMediaUrlModal.querySelector('.close-button');
-    const cancelModalBtn = addMediaUrlModal.querySelector('.cancel-btn');
-    const addMediaUrlForm = document.getElementById('add-media-url-form');
-    
-    if (!closeModalBtn || !cancelModalBtn || !addMediaUrlForm) {
-        console.warn('Required modal elements not found');
-        return;
-    }
-
-    addMediaUrlBtn.addEventListener('click', () => {
-        addMediaUrlModal.style.display = 'flex';
-    });
-
-    const closeModal = () => {
-        addMediaUrlModal.style.display = 'none';
-        addMediaUrlForm.reset();
-    }
-
-    closeModalBtn.addEventListener('click', closeModal);
-    cancelModalBtn.addEventListener('click', closeModal);
-    window.addEventListener('click', (event) => {
-        if (event.target == addMediaUrlModal) {
-            closeModal();
-        }
-    });
-
-    addMediaUrlForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const url = document.getElementById('media-url-input').value;
-        const name = document.getElementById('media-name-input').value;
-        const type = document.getElementById('media-type-select').value;
-        const mediaId = `media_${Date.now()}`;
-
-        const newMediaItem = {
-            mediaId,
-            name,
-            url,
-            type,
-            createdAt: new Date().toISOString()
-        };
-
-        try {
-            showLoading('Adding media item...');
-            const response = await fetch(`${apiBase}/media-items`, {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify(newMediaItem)
-            });
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Server responded with ${response.status}: ${errorBody}`);
-            }
-            await response.json();
-            showToast('Media item added successfully!', 'success');
-            loadMedia();
-            closeModal();
-        } catch (error) {
-            console.error('Error adding media item:', error);
-            showToast(`Error adding media item: ${error.message}`, 'error');
-        } finally {
-            hideLoading();
-        }
-    });
+    // Add Media URL button functionality
+    addMediaUrlBtn.addEventListener('click', addMediaByURL);
 
     // Load media after setup
     loadMedia();
 }
 
-// File Upload Setup
+// Enhanced File Upload Setup
 function setupFileUpload() {
-    const uploadArea = document.getElementById('upload-area');
-    const fileInput = document.getElementById('media-upload');
+    const uploadZone = document.getElementById('upload-zone');
+    const mediaUploadInput = document.getElementById('mediaUploadInput');
+    const uploadFilesBtn = document.getElementById('uploadFilesBtn');
+    const githubUploadBtn = document.getElementById('githubUploadBtn');
+    const addMediaUrlBtn = document.getElementById('addMediaUrlBtn');
+    
+    if (!uploadZone || !mediaUploadInput) {
+        console.error('Upload elements not found');
+        return;
+    }
     
     // Drag and drop events
-    uploadArea.addEventListener('dragover', (e) => {
+    uploadZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        uploadArea.classList.add('dragover');
+        uploadZone.classList.add('dragover');
     });
     
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('dragover');
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('dragover');
     });
     
-    uploadArea.addEventListener('drop', (e) => {
+    uploadZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        uploadArea.classList.remove('dragover');
+        uploadZone.classList.remove('dragover');
         const files = Array.from(e.dataTransfer.files);
         handleFiles(files);
     });
     
     // Click to browse
-    uploadArea.addEventListener('click', () => {
-        fileInput.click();
+    uploadZone.addEventListener('click', () => {
+        mediaUploadInput.click();
     });
     
     // File input change
-    fileInput.addEventListener('change', (e) => {
+    mediaUploadInput.addEventListener('change', (e) => {
         const files = Array.from(e.target.files);
         handleFiles(files);
     });
-}
-
-// Handle file uploads
-async function handleFiles(files) {
-    for (const file of files) {
-        try {
-            showLoading(`Uploading ${file.name}...`);
-            
-            // Check file size (50MB limit)
-            if (file.size > 50 * 1024 * 1024) {
-                throw new Error(`File ${file.name} is too large. Maximum size is 50MB.`);
-            }
-            
-            // Check file type
-            const fileType = getFileType(file);
-            if (!fileType) {
-                throw new Error(`File type not supported: ${file.name}`);
-            }
-            
-            // Upload file to GitHub (base64 encoded for small files)
-            const fileContent = await readFileAsBase64(file);
-            const fileName = `media/${getTenant()}/${Date.now()}_${file.name}`;
-            
-            // Create media item record
-            const mediaItem = {
-                mediaId: `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                name: file.name,
-                fileName: fileName,
-                fileSize: file.size,
-                type: fileType,
-                uploadedAt: new Date().toISOString(),
-                localPath: `/storage/emulated/0/CastGrid/${fileName}`, // Android local path
-                isLocal: true
-            };
-            
-            // Save to GitHub
-            const response = await fetch(`${apiBase}/media-items`, {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify(mediaItem)
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.statusText}`);
-            }
-            
-            // Save file content to GitHub
-            await saveFileToGitHub(fileName, fileContent, file.type);
-            
-            showToast(`${file.name} uploaded successfully!`, 'success');
-            
-        } catch (error) {
-            console.error('Upload error:', error);
-            showToast(`Error uploading ${file.name}: ${error.message}`, 'error');
-        } finally {
-            hideLoading();
-        }
+    
+    // Upload Files button
+    if (uploadFilesBtn) {
+        uploadFilesBtn.addEventListener('click', () => {
+            mediaUploadInput.click();
+        });
     }
     
-    // Refresh media library
-    loadMedia();
+    // GitHub Upload button
+    if (githubUploadBtn) {
+        githubUploadBtn.addEventListener('click', () => {
+            const tempInput = document.createElement('input');
+            tempInput.type = 'file';
+            tempInput.multiple = true;
+            tempInput.accept = 'video/*,image/*';
+            tempInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                files.forEach(file => uploadToGitHub(file));
+            });
+            tempInput.click();
+        });
+    }
+    
+    // Add Media by URL button
+    if (addMediaUrlBtn) {
+        addMediaUrlBtn.addEventListener('click', addMediaByURL);
+    }
 }
+
+// Enhanced file handling - moved to line 3206
 
 // Read file as base64
 function readFileAsBase64(file) {
