@@ -1,4 +1,5 @@
 // ===== CastGrid Admin Dashboard JavaScript =====
+console.log('🎯 CastGrid Admin Dashboard - VERSION 3.0 - UPLOAD FIXES APPLIED');
 
 // Global variables
 let apiBase = '/.netlify/functions';
