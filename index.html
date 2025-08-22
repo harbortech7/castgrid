@@ -36,6 +36,9 @@
             <!-- Sidebar Navigation -->
             <nav class="admin-sidebar">
                 <ul class="nav-menu">
+                    <li><a href="#dashboard" class="nav-link" data-section="dashboard">
+                        <i class="fas fa-chart-bar"></i> Dashboard
+                    </a></li>
                     <li><a href="#setup" class="nav-link active" data-section="setup">
                         <i class="fas fa-user-shield"></i> Admin Login
                     </a></li>
@@ -60,6 +63,18 @@
             <!-- Content Sections -->
             <div class="admin-content">
                 
+                <!-- Dashboard Stats Section -->
+                <section id="dashboard-section" class="content-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-chart-bar"></i> Dashboard Overview</h2>
+                        <p>Monitor your CastGrid system status and performance</p>
+                    </div>
+                    
+                    <div class="dashboard-stats" id="dashboard-stats">
+                        <!-- Stats will be loaded here -->
+                    </div>
+                </section>
+
                 <!-- Firebase Setup Section -->
                 <section id="setup-section" class="content-section active">
                     <div class="section-header">
@@ -158,7 +173,7 @@
                         </button>
                     </div>
 
-                    <div class="devices-grid" id="devices-grid">
+                    <div class="devices-grid" id="devices-list">
                         <!-- Devices will be loaded here -->
                     </div>
 
@@ -234,6 +249,10 @@
                     <div class="media-grid" id="media-grid">
                         <!-- Media items will be loaded here -->
                     </div>
+                    
+                    <div id="media-items-list">
+                        <!-- Media items list will be loaded here -->
+                    </div>
                 </section>
 
                 <!-- Media Boxes Section -->
@@ -249,6 +268,10 @@
                     <div class="mediaboxes-grid" id="mediaboxes-grid">
                         <!-- Media boxes will be loaded here -->
                     </div>
+                    
+                    <div id="media-boxes-list">
+                        <!-- Media boxes list will be loaded here -->
+                    </div>
                 </section>
 
                 <!-- Grid Layout Section -->
@@ -263,6 +286,10 @@
 
                     <div class="grid-designer" id="grid-designer">
                         <!-- Grid layout will be loaded here -->
+                    </div>
+                    
+                    <div id="grids-list">
+                        <!-- Grids list will be loaded here -->
                     </div>
                 </section>
 

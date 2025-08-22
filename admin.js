@@ -350,6 +350,12 @@ function formatBytes(bytes, decimals = 2) {
 }
 
 // Placeholder functions for edit/delete operations
+function addGrid() {
+    console.log('Add grid function called');
+    // TODO: Implement grid creation
+    showNotification('Grid creation not yet implemented', 'info');
+}
+
 function editDevice(deviceId) {
     console.log('Edit device:', deviceId);
     // TODO: Implement device editing
@@ -398,6 +404,35 @@ function deleteGrid(gridId) {
     showNotification('Grid deletion not yet implemented', 'info');
 }
 
+// Utility functions
+function getTenantId() {
+    // This should come from user authentication or device configuration
+    // For now, return a default tenant ID
+    return 'default';
+}
+
+// Setup step functions
+function completeStep(stepNumber) {
+    console.log('Completing step:', stepNumber);
+    const step = document.querySelector(`[data-step="${stepNumber}"]`);
+    if (step) {
+        step.classList.add('completed');
+        showNotification(`Step ${stepNumber} completed!`, 'success');
+    }
+}
+
+// Admin access functions
+function saveAdminAccess() {
+    console.log('Saving admin access');
+    showNotification('Admin access saved', 'success');
+}
+
+// API connection test
+function testApiConnection() {
+    console.log('Testing API connection');
+    showNotification('API connection test initiated', 'info');
+}
+
 // Notification system
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
@@ -418,6 +453,121 @@ function showNotification(message, type = 'info') {
 }
 
 // ===== Event Listeners =====
+
+// Add media URL button handler
+document.addEventListener('DOMContentLoaded', function() {
+    const addMediaUrlBtn = document.getElementById('add-media-url-btn');
+    if (addMediaUrlBtn) {
+        addMediaUrlBtn.addEventListener('click', function() {
+            console.log('Add media by URL clicked');
+            showNotification('Add media by URL not yet implemented', 'info');
+        });
+    }
+    
+    // Preview control handlers
+    const previewPlayBtn = document.getElementById('preview-play');
+    if (previewPlayBtn) {
+        previewPlayBtn.addEventListener('click', function() {
+            console.log('Preview play clicked');
+            showNotification('Preview play not yet implemented', 'info');
+        });
+    }
+    
+    const previewFullscreenBtn = document.getElementById('preview-fullscreen');
+    if (previewFullscreenBtn) {
+        previewFullscreenBtn.addEventListener('click', function() {
+            console.log('Preview fullscreen clicked');
+            showNotification('Preview fullscreen not yet implemented', 'info');
+        });
+    }
+    
+    const deployToDeviceBtn = document.getElementById('deploy-to-device');
+    if (deployToDeviceBtn) {
+        deployToDeviceBtn.addEventListener('click', function() {
+            console.log('Deploy to device clicked');
+            showNotification('Deploy to device not yet implemented', 'info');
+        });
+    }
+    
+    // Media filter handlers
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const filter = this.getAttribute('data-filter');
+            console.log('Filter clicked:', filter);
+            
+            // Remove active class from all buttons
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            showNotification(`Filtered to show: ${filter}`, 'info');
+        });
+    }
+    
+    // Accessibility toggle handlers
+    const toggleContrastBtn = document.getElementById('toggle-contrast');
+    if (toggleContrastBtn) {
+        toggleContrastBtn.addEventListener('click', function() {
+            const isPressed = this.getAttribute('aria-pressed') === 'true';
+            this.setAttribute('aria-pressed', !isPressed);
+            document.body.classList.toggle('high-contrast');
+            showNotification(`High contrast ${!isPressed ? 'enabled' : 'disabled'}`, 'info');
+        });
+    }
+    
+    const toggleTextBtn = document.getElementById('toggle-text');
+    if (toggleTextBtn) {
+        toggleTextBtn.addEventListener('click', function() {
+            const isPressed = this.getAttribute('aria-pressed') === 'true';
+            this.setAttribute('aria-pressed', !isPressed);
+            document.body.classList.toggle('large-text');
+            showNotification(`Large text ${!isPressed ? 'enabled' : 'disabled'}`, 'info');
+        });
+    }
+    
+    // Save all button handler
+    const saveAllBtn = document.getElementById('save-all');
+    if (saveAllBtn) {
+        saveAllBtn.addEventListener('click', function() {
+            console.log('Save all clicked');
+            showNotification('Save all functionality not yet implemented', 'info');
+        });
+    }
+    
+    // Device form submission handler
+    const deviceForm = document.getElementById('device-form');
+    if (deviceForm) {
+        deviceForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('Device form submitted');
+            
+            const deviceId = document.getElementById('device-id').value;
+            const location = document.getElementById('device-location').value;
+            const gridCount = document.getElementById('device-grid-count').value;
+            
+            console.log('Device ID:', deviceId, 'Location:', location, 'Grid Count:', gridCount);
+            showNotification('Device creation not yet implemented', 'info');
+            
+            // Close the modal
+            closeModal('device-modal');
+        });
+    }
+    
+    // Media upload input handler
+    const mediaUploadInput = document.getElementById('media-upload');
+    if (mediaUploadInput) {
+        mediaUploadInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            console.log('Media files selected:', files.length);
+            
+            if (files.length > 0) {
+                showNotification(`${files.length} file(s) selected for upload`, 'info');
+                // TODO: Implement file upload functionality
+            }
+        });
+    }
+});
 
 function setupEventListeners() {
     // Accessibility toggles
