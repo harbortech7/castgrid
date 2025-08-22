@@ -14,12 +14,23 @@ let setupProgress = {
     step4: false
 };
 
+// Enhanced file management
+let uploadQueue = [];
+let uploadProgress = {};
+let localFileCache = new Map();
+let storageStats = {
+    totalSize: 0,
+    availableSpace: 0,
+    fileCount: 0
+};
+
 // ===== Initialization =====
 
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
     restoreAccessibilityPrefs();
+    initializeFileManager();
 });
 
 function restoreAccessibilityPrefs(){
@@ -41,6 +52,106 @@ function initializeApp() {
         window.netlifyIdentity.on('init', user => { identityUser = user; updateConnectionStatus(!!user); });
         window.netlifyIdentity.init();
     }
+    
+    // Initialize enhanced features
+    initializeFileManager();
+    initializeGridDesigner();
+    initializeMediaLibrary();
+    initializeRealTimeSync();
+    
+    // Load initial data
+    loadInitialData();
+}
+
+function loadInitialData() {
+    // Load cached data first for faster initial display
+    const cachedDevices = window.getCachedData('devices');
+    const cachedMediaItems = window.getCachedData('mediaItems');
+    const cachedMediaBoxes = window.getCachedData('mediaBoxes');
+    const cachedGrids = window.getCachedData('grids');
+    
+    if (cachedDevices) {
+        currentDevices = cachedDevices;
+        renderDevices();
+    }
+    
+    if (cachedMediaItems) {
+        currentMediaItems = cachedMediaItems;
+        renderMediaItems();
+    }
+    
+    if (cachedMediaBoxes) {
+        currentMediaBoxes = cachedMediaBoxes;
+        renderMediaBoxes();
+    }
+    
+    if (cachedGrids) {
+        currentGrids = cachedGrids;
+        renderGrids();
+    }
+    
+    // Then load fresh data from server
+    Promise.all([
+        loadDevices(),
+        loadMediaItems(),
+        loadMediaBoxes(),
+        loadGrids()
+    ]).then(() => {
+        console.log('Initial data loaded successfully');
+        updateDashboardStats();
+    }).catch(error => {
+        console.error('Error loading initial data:', error);
+        showNotification('Error loading data. Some features may not work properly.', 'error');
+    });
+}
+
+function updateDashboardStats() {
+    const statsContainer = document.getElementById('dashboard-stats');
+    if (!statsContainer) return;
+    
+    const totalDevices = currentDevices.length;
+    const totalMediaItems = currentMediaItems.length;
+    const totalMediaBoxes = currentMediaBoxes.length;
+    const totalGrids = currentGrids.length;
+    
+    statsContainer.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-tv"></i>
+            </div>
+            <div class="stat-content">
+                <h3>${totalDevices}</h3>
+                <p>Devices</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-photo-video"></i>
+            </div>
+            <div class="stat-content">
+                <h3>${totalMediaItems}</h3>
+                <p>Media Items</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-box"></i>
+            </div>
+            <div class="stat-content">
+                <h3>${totalMediaBoxes}</h3>
+                <p>Media Boxes</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-th"></i>
+            </div>
+            <div class="stat-content">
+                <h3>${totalGrids}</h3>
+                <p>Grid Zones</p>
+            </div>
+        </div>
+    `;
 }
 
 // ===== Event Listeners =====
@@ -504,11 +615,30 @@ function updateDeviceSelectors() {
 // ===== Media Library Management =====
 
 function setupMediaLibrary() {
+    console.log('Setting up Media Library...');
+    
+    // Check if required elements exist before proceeding
     const addMediaUrlBtn = document.getElementById('add-media-url-btn');
     const addMediaUrlModal = document.getElementById('add-media-url-modal');
+    
+    if (!addMediaUrlBtn) {
+        console.warn('Add Media URL button not found');
+        return;
+    }
+    
+    if (!addMediaUrlModal) {
+        console.warn('Add Media URL modal not found');
+        return;
+    }
+    
     const closeModalBtn = addMediaUrlModal.querySelector('.close-button');
     const cancelModalBtn = addMediaUrlModal.querySelector('.cancel-btn');
     const addMediaUrlForm = document.getElementById('add-media-url-form');
+    
+    if (!closeModalBtn || !cancelModalBtn || !addMediaUrlForm) {
+        console.warn('Required modal elements not found');
+        return;
+    }
 
     addMediaUrlBtn.addEventListener('click', () => {
         addMediaUrlModal.style.display = 'flex';
@@ -565,6 +695,7 @@ function setupMediaLibrary() {
         }
     });
 
+    // Load media after setup
     loadMedia();
 }
 
@@ -684,6 +815,22 @@ function getFileType(file) {
     return null;
 }
 
+// Show toast notification
+function showToast(message, type = 'info') {
+    console.log(`Toast [${type}]:`, message);
+    showNotification(message, type);
+}
+
+// Hide loading overlay
+function hideLoading() {
+    showLoading(false);
+}
+
+// Get current tenant from localStorage
+function getTenant() {
+    return localStorage.getItem('cg_admin_tenant') || 'default';
+}
+
 // Save file to GitHub
 async function saveFileToGitHub(fileName, content, mimeType) {
     const response = await fetch(`${apiBase}/upload-file`, {
@@ -705,49 +852,115 @@ async function saveFileToGitHub(fileName, content, mimeType) {
 
 // Load media items
 function loadMedia() {
+    console.log('Loading media items...');
+    
+    // Check if media grid exists
+    const mediaGrid = document.getElementById('media-grid');
+    if (!mediaGrid) {
+        console.warn('Media grid element not found');
+        return;
+    }
+    
+    // Show loading state
+    mediaGrid.innerHTML = '<div class="loading">Loading media...</div>';
+    
     fetch(`${apiBase}/media-items`, {
         headers: authHeaders()
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(mediaItems => {
+        console.log('Media items loaded:', mediaItems);
         displayMediaItems(mediaItems);
     })
     .catch(error => {
         console.error('Error loading media:', error);
+        
+        // Show error state instead of leaving loading
+        mediaGrid.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: #e74c3c; margin-bottom: 1rem;"></i>
+                <h3>Error Loading Media</h3>
+                <p>${error.message}</p>
+                <button onclick="loadMedia()" class="btn-primary">Retry</button>
+            </div>
+        `;
+        
         showToast('Error loading media library', 'error');
     });
 }
 
 // Display media items in grid
 function displayMediaItems(mediaItems) {
+    console.log('Displaying media items:', mediaItems);
+    
     const mediaGrid = document.getElementById('media-grid');
+    if (!mediaGrid) {
+        console.warn('Media grid element not found');
+        return;
+    }
+    
+    // Clear the grid
     mediaGrid.innerHTML = '';
     
+    // Handle empty state
+    if (!mediaItems || mediaItems.length === 0) {
+        mediaGrid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1/-1; text-align: center; padding: 2rem;">
+                <i class="fas fa-photo-video" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
+                <h3 style="color: #666;">No media found</h3>
+                <p style="color: #999;">Upload your first video or image to get started</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display media items
     mediaItems.forEach(item => {
-        const mediaItem = createMediaItemElement(item);
-        mediaGrid.appendChild(mediaItem);
+        try {
+            const mediaItem = createMediaItemElement(item);
+            mediaGrid.appendChild(mediaItem);
+        } catch (error) {
+            console.error('Error creating media item element:', error, item);
+        }
     });
 }
 
 // Create media item element
 function createMediaItemElement(item) {
+    console.log('Creating media item element:', item);
+    
+    if (!item || !item.mediaId) {
+        console.error('Invalid media item:', item);
+        return null;
+    }
+    
     const div = document.createElement('div');
     div.className = 'media-item';
     
-    const preview = item.type === 'image' 
-        ? `<img src="${item.fileName}" alt="${item.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
-        : `<video src="${item.fileName}" muted></video>`;
+    // Safely get item properties with fallbacks
+    const name = item.name || item.filename || 'Unnamed Media';
+    const type = item.type || 'unknown';
+    const fileName = item.fileName || item.url || '';
+    
+    const preview = type === 'image' 
+        ? `<img src="${fileName}" alt="${name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+        : `<video src="${fileName}" muted></video>`;
     
     div.innerHTML = `
         <div class="media-preview">
             ${preview}
-            <div class="media-icon" style="display: ${item.type === 'image' ? 'none' : 'flex'}">
-                <i class="fas fa-${item.type === 'video' ? 'play' : 'image'}"></i>
+            <div class="media-icon" style="display: ${type === 'image' ? 'none' : 'flex'}">
+                <i class="fas fa-${type === 'video' ? 'play' : 'image'}"></i>
             </div>
         </div>
         <div class="media-info">
-            <div class="media-name">${item.name}</div>
-            <div class="media-type">${item.type}</div>
+            <div class="media-name">${name}</div>
+            <div class="media-type">${type}</div>
             <div class="media-actions">
                 <button class="edit-btn" onclick="editMedia('${item.mediaId}')">Edit</button>
                 <button class="delete-btn" onclick="deleteMedia('${item.mediaId}')">Delete</button>
@@ -1328,6 +1541,200 @@ function getGridStyles(gridCount) {
     }
 }
 
+// Enhanced Grid Layout Designer
+function initializeGridDesigner() {
+    console.log('Initializing enhanced grid layout designer');
+    
+    setupGridDragAndDrop();
+    setupGridVisualEditor();
+    setupGridPresets();
+}
+
+function setupGridDragAndDrop() {
+    const gridContainer = document.getElementById('grid-layout-container');
+    if (!gridContainer) return;
+    
+    // Make grid zones droppable for media boxes
+    const gridZones = gridContainer.querySelectorAll('.grid-zone');
+    gridZones.forEach(zone => {
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        });
+        
+        zone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+        });
+        
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            const mediaBoxId = e.dataTransfer.getData('text/plain');
+            const position = parseInt(zone.dataset.position);
+            assignMediaBoxToGrid(mediaBoxId, position);
+        });
+    });
+}
+
+function setupGridVisualEditor() {
+    const gridSizeSelector = document.getElementById('grid-size-selector');
+    if (gridSizeSelector) {
+        gridSizeSelector.addEventListener('change', (e) => {
+            const size = parseInt(e.target.value);
+            updateGridLayout(size);
+        });
+    }
+}
+
+function setupGridPresets() {
+    const presetsContainer = document.getElementById('grid-presets');
+    if (!presetsContainer) return;
+    
+    const presets = [
+        { name: 'Single Display', size: 1, description: 'Full screen content' },
+        { name: 'Split Screen', size: 2, description: 'Two content zones' },
+        { name: 'Quad Layout', size: 4, description: 'Four content zones (2x2)' },
+        { name: 'Six Zones', size: 6, description: 'Six content zones (2x3)' },
+        { name: 'Eight Zones', size: 8, description: 'Eight content zones (2x4)' }
+    ];
+    
+    presetsContainer.innerHTML = presets.map(preset => `
+        <div class="grid-preset" onclick="applyGridPreset(${preset.size})">
+            <h4>${preset.name}</h4>
+            <p>${preset.description}</p>
+            <div class="preset-preview grid-${preset.size}">
+                ${generateGridPreview(preset.size)}
+            </div>
+        </div>
+    `).join('');
+}
+
+function generateGridPreview(size) {
+    const gridClass = `grid-${size}`;
+    let html = '';
+    
+    for (let i = 1; i <= size; i++) {
+        html += `<div class="grid-zone-preview" data-position="${i}"></div>`;
+    }
+    
+    return html;
+}
+
+function applyGridPreset(size) {
+    const deviceId = document.getElementById('grid-device-selector')?.value;
+    if (!deviceId) {
+        showNotification('Please select a device first', 'warning');
+        return;
+    }
+    
+    updateGridLayout(size);
+    showNotification(`Applied ${size}-zone grid layout`, 'success');
+}
+
+function updateGridLayout(size) {
+    const gridContainer = document.getElementById('grid-layout-container');
+    if (!gridContainer) return;
+    
+    gridContainer.className = `grid-layout grid-${size}`;
+    gridContainer.innerHTML = '';
+    
+    for (let i = 1; i <= size; i++) {
+        const zone = document.createElement('div');
+        zone.className = 'grid-zone';
+        zone.dataset.position = i;
+        zone.innerHTML = `
+            <div class="zone-header">
+                <span class="zone-number">${i}</span>
+                <span class="zone-status">Empty</span>
+            </div>
+            <div class="zone-content">
+                <div class="zone-placeholder">
+                    <i class="fas fa-plus"></i>
+                    <p>Drop Media Box Here</p>
+                </div>
+            </div>
+        `;
+        gridContainer.appendChild(zone);
+    }
+    
+    // Reinitialize drag and drop
+    setupGridDragAndDrop();
+    
+    // Update grid size selector
+    const sizeSelector = document.getElementById('grid-size-selector');
+    if (sizeSelector) {
+        sizeSelector.value = size;
+    }
+}
+
+function assignMediaBoxToGrid(mediaBoxId, position) {
+    const deviceId = document.getElementById('grid-device-selector')?.value;
+    if (!deviceId) {
+        showNotification('Please select a device first', 'warning');
+        return;
+    }
+    
+    // Find existing grid for this position
+    const existingGrid = currentGrids.find(g => g.deviceId === deviceId && g.position === position);
+    
+    if (existingGrid) {
+        // Update existing grid
+        updateGrid(existingGrid.gridId, mediaBoxId);
+    } else {
+        // Create new grid
+        createGrid({
+            deviceId: deviceId,
+            position: position,
+            mediaBoxId: mediaBoxId
+        });
+    }
+    
+    // Update visual representation
+    updateGridZoneDisplay(position, mediaBoxId);
+}
+
+function updateGridZoneDisplay(position, mediaBoxId) {
+    const zone = document.querySelector(`[data-position="${position}"]`);
+    if (!zone) return;
+    
+    const mediaBox = currentMediaBoxes.find(mb => mb.mediaBoxId === mediaBoxId);
+    if (!mediaBox) return;
+    
+    zone.querySelector('.zone-status').textContent = mediaBox.name;
+    zone.querySelector('.zone-content').innerHTML = `
+        <div class="assigned-media-box">
+            <h4>${mediaBox.name}</h4>
+            <p>${mediaBox.mediaItems?.length || 0} items</p>
+            <button class="btn-small" onclick="removeGridAssignment(${position})">
+                <i class="fas fa-times"></i> Remove
+            </button>
+        </div>
+    `;
+}
+
+function removeGridAssignment(position) {
+    const deviceId = document.getElementById('grid-device-selector')?.value;
+    if (!deviceId) return;
+    
+    const grid = currentGrids.find(g => g.deviceId === deviceId && g.position === position);
+    if (grid) {
+        deleteGrid(grid.gridId);
+    }
+    
+    // Reset zone display
+    const zone = document.querySelector(`[data-position="${position}"]`);
+    if (zone) {
+        zone.querySelector('.zone-status').textContent = 'Empty';
+        zone.querySelector('.zone-content').innerHTML = `
+            <div class="zone-placeholder">
+                <i class="fas fa-plus"></i>
+                <p>Drop Media Box Here</p>
+            </div>
+        `;
+    }
+}
+
 // ===== Utility Functions =====
 
 function showLoading(show) {
@@ -1409,3 +1816,859 @@ window.addToMediaBox = addToMediaBox;
 window.removeFromMediaBox = removeFromMediaBox;
 window.selectMediaBoxForGrid = selectMediaBoxForGrid;
 window.selectMediaBox = selectMediaBox; 
+
+function initializeFileManager() {
+    console.log('Initializing enhanced file management system');
+    
+    // Initialize drag and drop zones
+    setupDragAndDrop();
+    
+    // Initialize file type validation
+    setupFileValidation();
+    
+    // Load storage statistics
+    loadStorageStats();
+    
+    // Setup file upload progress tracking
+    setupUploadProgress();
+}
+
+function setupDragAndDrop() {
+    const dropZones = document.querySelectorAll('.file-drop-zone');
+    
+    dropZones.forEach(zone => {
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        });
+        
+        zone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+        });
+        
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            handleFileDrop(e.dataTransfer.files, zone);
+        });
+    });
+}
+
+function setupFileValidation() {
+    const allowedTypes = {
+        video: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v'],
+        image: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
+    };
+    
+    window.validateFileType = function(file) {
+        const extension = file.name.split('.').pop().toLowerCase();
+        const isVideo = allowedTypes.video.includes(extension);
+        const isImage = allowedTypes.image.includes(extension);
+        
+        return {
+            isValid: isVideo || isImage,
+            type: isVideo ? 'video' : isImage ? 'image' : 'unknown',
+            extension: extension
+        };
+    };
+}
+
+function setupUploadProgress() {
+    // Create progress bar container if it doesn't exist
+    if (!document.getElementById('upload-progress-container')) {
+        const progressContainer = document.createElement('div');
+        progressContainer.id = 'upload-progress-container';
+        progressContainer.className = 'upload-progress-container';
+        document.body.appendChild(progressContainer);
+    }
+}
+
+function loadStorageStats() {
+    const statsDiv = document.getElementById('storage-stats');
+    if (!statsDiv) return;
+
+    const updateStats = () => {
+        fetch(`${apiBase}/storage-stats`, { headers: authHeaders() })
+            .then(response => response.json())
+            .then(stats => {
+                storageStats = stats;
+                statsDiv.innerHTML = `
+                    <p>Total Storage: ${formatBytes(storageStats.totalSize)}</p>
+                    <p>Used Storage: ${formatBytes(storageStats.totalSize - storageStats.availableSpace)}</p>
+                    <p>Available Storage: ${formatBytes(storageStats.availableSpace)}</p>
+                    <p>Total Files: ${storageStats.fileCount}</p>
+                `;
+            })
+            .catch(error => {
+                console.error('Error loading storage stats:', error);
+                statsDiv.innerHTML = '<p>Error loading storage stats.</p>';
+            });
+    };
+
+    updateStats();
+    setInterval(updateStats, 5000); // Update every 5 seconds
+}
+
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+} 
+
+function handleFileDrop(files, dropZone) {
+    console.log(`Processing ${files.length} dropped files`);
+    
+    Array.from(files).forEach(file => {
+        const validation = window.validateFileType(file);
+        
+        if (!validation.isValid) {
+            showNotification(`Invalid file type: ${file.name}`, 'error');
+            return;
+        }
+        
+        // Add to upload queue
+        const uploadItem = {
+            id: generateId(),
+            file: file,
+            type: validation.type,
+            status: 'queued',
+            progress: 0,
+            timestamp: Date.now()
+        };
+        
+        uploadQueue.push(uploadItem);
+        updateUploadQueue();
+        
+        // Start upload if queue is not processing
+        if (uploadQueue.length === 1) {
+            processUploadQueue();
+        }
+    });
+}
+
+function processUploadQueue() {
+    if (uploadQueue.length === 0) return;
+    
+    const currentUpload = uploadQueue[0];
+    if (currentUpload.status === 'uploading') return;
+    
+    currentUpload.status = 'uploading';
+    updateUploadQueue();
+    
+    uploadFile(currentUpload)
+        .then(result => {
+            currentUpload.status = 'completed';
+            currentUpload.progress = 100;
+            updateUploadQueue();
+            
+            // Remove from queue after delay
+            setTimeout(() => {
+                uploadQueue = uploadQueue.filter(item => item.id !== currentUpload.id);
+                updateUploadQueue();
+            }, 3000);
+            
+            // Process next item
+            processUploadQueue();
+        })
+        .catch(error => {
+            currentUpload.status = 'failed';
+            currentUpload.error = error.message;
+            updateUploadQueue();
+            showNotification(`Upload failed: ${currentUpload.file.name}`, 'error');
+        });
+}
+
+function uploadFile(uploadItem) {
+    return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', uploadItem.file);
+        formData.append('type', uploadItem.type);
+        formData.append('filename', uploadItem.file.name);
+        
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                uploadItem.progress = Math.round((e.loaded / e.total) * 100);
+                updateUploadQueue();
+            }
+        });
+        
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                try {
+                    const result = JSON.parse(xhr.responseText);
+                    resolve(result);
+                } catch (e) {
+                    reject(new Error('Invalid response format'));
+                }
+            } else {
+                reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+        });
+        
+        xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+        });
+        
+        xhr.open('POST', `${apiBase}/upload-file`);
+        xhr.setRequestHeader('X-Admin-Token', localStorage.getItem('adminToken') || '');
+        xhr.setRequestHeader('X-Tenant', localStorage.getItem('adminTenant') || '');
+        xhr.send(formData);
+    });
+}
+
+function updateUploadQueue() {
+    const queueContainer = document.getElementById('upload-queue');
+    if (!queueContainer) return;
+    
+    if (uploadQueue.length === 0) {
+        queueContainer.innerHTML = '<p>No files in upload queue</p>';
+        return;
+    }
+    
+    queueContainer.innerHTML = uploadQueue.map(item => `
+        <div class="upload-item ${item.status}">
+            <div class="upload-info">
+                <span class="filename">${item.file.name}</span>
+                <span class="status">${item.status}</span>
+            </div>
+            <div class="upload-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${item.progress}%"></div>
+                </div>
+                <span class="progress-text">${item.progress}%</span>
+            </div>
+            ${item.status === 'failed' ? `<span class="error">${item.error}</span>` : ''}
+        </div>
+    `).join('');
+}
+
+function generateId() {
+    return 'id_' + Math.random().toString(36).substr(2, 9);
+} 
+
+// Enhanced Media Library Management
+function initializeMediaLibrary() {
+    console.log('Initializing enhanced media library management');
+    
+    setupMediaSearch();
+    setupMediaBulkOperations();
+    setupMediaOrganization();
+    setupMediaPreview();
+}
+
+function setupMediaSearch() {
+    const searchInput = document.getElementById('media-search');
+    if (!searchInput) return;
+    
+    searchInput.addEventListener('input', debounce((e) => {
+        const query = e.target.value.toLowerCase();
+        filterMediaItems(query);
+    }, 300));
+}
+
+function setupMediaBulkOperations() {
+    const bulkActionsContainer = document.getElementById('bulk-actions');
+    if (!bulkActionsContainer) return;
+    
+    bulkActionsContainer.innerHTML = `
+        <div class="bulk-actions-bar">
+            <button class="btn-secondary" onclick="selectAllMedia()">
+                <i class="fas fa-check-square"></i> Select All
+            </button>
+            <button class="btn-secondary" onclick="deselectAllMedia()">
+                <i class="fas fa-square"></i> Deselect All
+            </button>
+            <button class="btn-danger" onclick="deleteSelectedMedia()" disabled>
+                <i class="fas fa-trash"></i> Delete Selected
+            </button>
+            <button class="btn-primary" onclick="moveSelectedToBox()" disabled>
+                <i class="fas fa-folder-open"></i> Move to Box
+            </button>
+        </div>
+    `;
+}
+
+function setupMediaOrganization() {
+    const organizationContainer = document.getElementById('media-organization');
+    if (!organizationContainer) return;
+    
+    organizationContainer.innerHTML = `
+        <div class="organization-tools">
+            <div class="tool-group">
+                <h4>Quick Organization</h4>
+                <button class="btn-secondary" onclick="organizeByType()">
+                    <i class="fas fa-sort"></i> Organize by Type
+                </button>
+                <button class="btn-secondary" onclick="organizeByDate()">
+                    <i class="fas fa-calendar"></i> Organize by Date
+                </button>
+                <button class="btn-secondary" onclick="organizeBySize()">
+                    <i class="fas fa-weight-hanging"></i> Organize by Size
+                </button>
+            </div>
+            <div class="tool-group">
+                <h4>Batch Operations</h4>
+                <button class="btn-secondary" onclick="batchRename()">
+                    <i class="fas fa-edit"></i> Batch Rename
+                </button>
+                <button class="btn-secondary" onclick="batchDuration()">
+                    <i class="fas fa-clock"></i> Batch Duration
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function setupMediaPreview() {
+    const previewContainer = document.getElementById('media-preview');
+    if (!previewContainer) return;
+    
+    previewContainer.innerHTML = `
+        <div class="preview-panel">
+            <div class="preview-header">
+                <h4>Media Preview</h4>
+                <button class="btn-small" onclick="closePreview()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="preview-content">
+                <p>Select a media item to preview</p>
+            </div>
+        </div>
+    `;
+}
+
+function filterMediaItems(query) {
+    const mediaItems = document.querySelectorAll('.media-item');
+    
+    mediaItems.forEach(item => {
+        const filename = item.querySelector('.media-filename')?.textContent?.toLowerCase() || '';
+        const type = item.querySelector('.media-type')?.textContent?.toLowerCase() || '';
+        const box = item.querySelector('.media-box')?.textContent?.toLowerCase() || '';
+        
+        const matches = filename.includes(query) || type.includes(query) || box.includes(query);
+        item.style.display = matches ? 'block' : 'none';
+    });
+    
+    updateMediaCount();
+}
+
+function selectAllMedia() {
+    const checkboxes = document.querySelectorAll('.media-checkbox');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateBulkActions();
+}
+
+function deselectAllMedia() {
+    const checkboxes = document.querySelectorAll('.media-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const selectedCount = document.querySelectorAll('.media-checkbox:checked').length;
+    const deleteBtn = document.querySelector('#bulk-actions .btn-danger');
+    const moveBtn = document.querySelector('#bulk-actions .btn-primary');
+    
+    if (deleteBtn) deleteBtn.disabled = selectedCount === 0;
+    if (moveBtn) moveBtn.disabled = selectedCount === 0;
+    
+    // Update count display
+    const countDisplay = document.querySelector('#bulk-actions .selected-count');
+    if (countDisplay) {
+        countDisplay.textContent = selectedCount > 0 ? `(${selectedCount} selected)` : '';
+    }
+}
+
+function deleteSelectedMedia() {
+    const selectedItems = document.querySelectorAll('.media-checkbox:checked');
+    if (selectedItems.length === 0) return;
+    
+    const confirmDelete = confirm(`Are you sure you want to delete ${selectedItems.length} media items? This action cannot be undone.`);
+    if (!confirmDelete) return;
+    
+    const deletePromises = Array.from(selectedItems).map(checkbox => {
+        const mediaId = checkbox.value;
+        return deleteMediaItem(mediaId);
+    });
+    
+    Promise.all(deletePromises)
+        .then(() => {
+            showNotification(`Successfully deleted ${selectedItems.length} media items`, 'success');
+            loadMediaItems();
+        })
+        .catch(error => {
+            showNotification(`Error deleting media items: ${error.message}`, 'error');
+        });
+}
+
+function moveSelectedToBox() {
+    const selectedItems = document.querySelectorAll('.media-checkbox:checked');
+    if (selectedItems.length === 0) return;
+    
+    // Show media box selection modal
+    showMediaBoxSelectionModal(Array.from(selectedItems).map(cb => cb.value));
+}
+
+function organizeByType() {
+    const mediaContainer = document.getElementById('media-items-container');
+    if (!mediaContainer) return;
+    
+    const mediaItems = Array.from(mediaContainer.querySelectorAll('.media-item'));
+    
+    mediaItems.sort((a, b) => {
+        const typeA = a.querySelector('.media-type')?.textContent || '';
+        const typeB = b.querySelector('.media-type')?.textContent || '';
+        return typeA.localeCompare(typeB);
+    });
+    
+    mediaItems.forEach(item => mediaContainer.appendChild(item));
+    showNotification('Media items organized by type', 'success');
+}
+
+function organizeByDate() {
+    const mediaContainer = document.getElementById('media-items-container');
+    if (!mediaContainer) return;
+    
+    const mediaItems = Array.from(mediaContainer.querySelectorAll('.media-item'));
+    
+    mediaItems.sort((a, b) => {
+        const dateA = new Date(a.dataset.uploadDate || 0);
+        const dateB = new Date(b.dataset.uploadDate || 0);
+        return dateB - dateA; // Newest first
+    });
+    
+    mediaItems.forEach(item => mediaContainer.appendChild(item));
+    showNotification('Media items organized by upload date', 'success');
+}
+
+function organizeBySize() {
+    const mediaContainer = document.getElementById('media-items-container');
+    if (!mediaContainer) return;
+    
+    const mediaItems = Array.from(mediaContainer.querySelectorAll('.media-item'));
+    
+    mediaItems.sort((a, b) => {
+        const sizeA = parseInt(a.dataset.fileSize || 0);
+        const sizeB = parseInt(b.dataset.fileSize || 0);
+        return sizeB - sizeA; // Largest first
+    });
+    
+    mediaItems.forEach(item => mediaContainer.appendChild(item));
+    showNotification('Media items organized by file size', 'success');
+}
+
+function batchRename() {
+    const selectedItems = document.querySelectorAll('.media-checkbox:checked');
+    if (selectedItems.length === 0) return;
+    
+    const prefix = prompt('Enter prefix for batch rename (e.g., "promo_")');
+    if (!prefix) return;
+    
+    const renamePromises = Array.from(selectedItems).map((checkbox, index) => {
+        const mediaId = checkbox.value;
+        const currentName = checkbox.closest('.media-item').querySelector('.media-filename')?.textContent || '';
+        const extension = currentName.split('.').pop();
+        const newName = `${prefix}${index + 1}.${extension}`;
+        
+        return updateMediaItem(mediaId, { filename: newName });
+    });
+    
+    Promise.all(renamePromises)
+        .then(() => {
+            showNotification(`Successfully renamed ${selectedItems.length} media items`, 'success');
+            loadMediaItems();
+        })
+        .catch(error => {
+            showNotification(`Error renaming media items: ${error.message}`, 'error');
+        });
+}
+
+function batchDuration() {
+    const selectedItems = document.querySelectorAll('.media-checkbox:checked');
+    if (selectedItems.length === 0) return;
+    
+    const duration = prompt('Enter display duration in seconds for all selected items:');
+    if (!duration || isNaN(duration)) return;
+    
+    const durationValue = parseInt(duration);
+    if (durationValue < 1 || durationValue > 3600) {
+        showNotification('Duration must be between 1 and 3600 seconds', 'error');
+        return;
+    }
+    
+    const updatePromises = Array.from(selectedItems).map(checkbox => {
+        const mediaId = checkbox.value;
+        return updateMediaItem(mediaId, { duration: durationValue });
+    });
+    
+    Promise.all(updatePromises)
+        .then(() => {
+            showNotification(`Successfully updated duration for ${selectedItems.length} media items`, 'success');
+            loadMediaItems();
+        })
+        .catch(error => {
+            showNotification(`Error updating media items: ${error.message}`, 'error');
+        });
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+} 
+
+// Enhanced Real-time Sync & Performance
+function initializeRealTimeSync() {
+    console.log('Initializing enhanced real-time sync system');
+    
+    setupSyncMonitoring();
+    setupOfflineSupport();
+    setupPerformanceOptimizations();
+    setupCacheManagement();
+}
+
+function setupSyncMonitoring() {
+    const syncStatusContainer = document.getElementById('sync-status');
+    if (!syncStatusContainer) return;
+    
+    syncStatusContainer.innerHTML = `
+        <div class="sync-status-panel">
+            <div class="sync-indicator">
+                <i class="fas fa-sync-alt"></i>
+                <span class="sync-text">Syncing...</span>
+            </div>
+            <div class="sync-details">
+                <span class="last-sync">Last sync: Never</span>
+                <span class="sync-errors">Errors: 0</span>
+            </div>
+        </div>
+    `;
+    
+    // Start sync monitoring
+    startSyncMonitoring();
+}
+
+function setupOfflineSupport() {
+    // Check if service worker is supported
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                console.log('Service Worker registered:', registration);
+            })
+            .catch(error => {
+                console.log('Service Worker registration failed:', error);
+            });
+    }
+    
+    // Setup offline detection
+    window.addEventListener('online', () => {
+        document.body.classList.remove('offline');
+        showNotification('Connection restored. Syncing data...', 'success');
+        syncOfflineChanges();
+    });
+    
+    window.addEventListener('offline', () => {
+        document.body.classList.add('offline');
+        showNotification('Connection lost. Working offline...', 'warning');
+    });
+}
+
+function setupPerformanceOptimizations() {
+    // Implement virtual scrolling for large lists
+    setupVirtualScrolling();
+    
+    // Implement lazy loading for media items
+    setupLazyLoading();
+    
+    // Setup request batching
+    setupRequestBatching();
+}
+
+function setupCacheManagement() {
+    // Setup local storage cache
+    setupLocalCache();
+    
+    // Setup memory cache
+    setupMemoryCache();
+    
+    // Setup cache cleanup
+    setupCacheCleanup();
+}
+
+function startSyncMonitoring() {
+    let syncErrors = 0;
+    let lastSync = null;
+    
+    const updateSyncStatus = (status, error = null) => {
+        const indicator = document.querySelector('.sync-indicator');
+        const syncText = document.querySelector('.sync-text');
+        const lastSyncSpan = document.querySelector('.last-sync');
+        const errorsSpan = document.querySelector('.sync-errors');
+        
+        if (indicator) {
+            indicator.className = `sync-indicator ${status}`;
+        }
+        
+        if (syncText) {
+            syncText.textContent = status === 'syncing' ? 'Syncing...' : 
+                                  status === 'synced' ? 'Synced' : 
+                                  status === 'error' ? 'Sync Error' : 'Offline';
+        }
+        
+        if (lastSyncSpan && status === 'synced') {
+            lastSync = new Date();
+            lastSyncSpan.textContent = `Last sync: ${lastSync.toLocaleTimeString()}`;
+        }
+        
+        if (errorsSpan && error) {
+            syncErrors++;
+            errorsSpan.textContent = `Errors: ${syncErrors}`;
+        }
+    };
+    
+    // Simulate sync process
+    setInterval(() => {
+        if (navigator.onLine) {
+            updateSyncStatus('syncing');
+            
+            // Simulate sync delay
+            setTimeout(() => {
+                updateSyncStatus('synced');
+            }, 2000);
+        } else {
+            updateSyncStatus('offline');
+        }
+    }, 10000); // Check every 10 seconds
+}
+
+function syncOfflineChanges() {
+    const offlineChanges = JSON.parse(localStorage.getItem('offlineChanges') || '[]');
+    
+    if (offlineChanges.length === 0) return;
+    
+    showNotification(`Syncing ${offlineChanges.length} offline changes...`, 'info');
+    
+    const syncPromises = offlineChanges.map(change => {
+        return processOfflineChange(change);
+    });
+    
+    Promise.all(syncPromises)
+        .then(() => {
+            localStorage.removeItem('offlineChanges');
+            showNotification('All offline changes synced successfully', 'success');
+        })
+        .catch(error => {
+            showNotification(`Error syncing offline changes: ${error.message}`, 'error');
+        });
+}
+
+function processOfflineChange(change) {
+    switch (change.type) {
+        case 'create':
+            return createMediaItem(change.data);
+        case 'update':
+            return updateMediaItem(change.id, change.data);
+        case 'delete':
+            return deleteMediaItem(change.id);
+        default:
+            return Promise.reject(new Error(`Unknown change type: ${change.type}`));
+    }
+}
+
+function setupVirtualScrolling() {
+    const containers = document.querySelectorAll('.virtual-scroll-container');
+    
+    containers.forEach(container => {
+        const itemHeight = 60; // Height of each item
+        const visibleItems = Math.ceil(container.clientHeight / itemHeight);
+        let startIndex = 0;
+        let endIndex = visibleItems;
+        
+        const updateVisibleItems = () => {
+            const scrollTop = container.scrollTop;
+            startIndex = Math.floor(scrollTop / itemHeight);
+            endIndex = Math.min(startIndex + visibleItems, container.children.length);
+            
+            // Hide items outside visible range
+            Array.from(container.children).forEach((item, index) => {
+                if (index >= startIndex && index < endIndex) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        };
+        
+        container.addEventListener('scroll', updateVisibleItems);
+    });
+}
+
+function setupLazyLoading() {
+    const mediaItems = document.querySelectorAll('.media-item img, .media-item video');
+    
+    const imageObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const media = entry.target;
+                if (media.dataset.src) {
+                    media.src = media.dataset.src;
+                    media.removeAttribute('data-src');
+                    imageObserver.unobserve(media);
+                }
+            }
+        });
+    });
+    
+    mediaItems.forEach(media => {
+        if (media.dataset.src) {
+            imageObserver.observe(media);
+        }
+    });
+}
+
+function setupRequestBatching() {
+    let batchQueue = [];
+    let batchTimeout = null;
+    
+    window.batchRequest = function(endpoint, data, method = 'POST') {
+        return new Promise((resolve, reject) => {
+            batchQueue.push({
+                endpoint,
+                data,
+                method,
+                resolve,
+                reject
+            });
+            
+            if (batchTimeout) {
+                clearTimeout(batchTimeout);
+            }
+            
+            batchTimeout = setTimeout(() => {
+                processBatchQueue();
+            }, 100); // Batch requests within 100ms
+        });
+    };
+    
+    function processBatchQueue() {
+        if (batchQueue.length === 0) return;
+        
+        const batch = batchQueue.splice(0);
+        const batchData = batch.map(item => ({
+            endpoint: item.endpoint,
+            data: item.data,
+            method: item.method
+        }));
+        
+        // Send batch request
+        fetch(`${apiBase}/batch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...authHeaders()
+            },
+            body: JSON.stringify({ requests: batchData })
+        })
+        .then(response => response.json())
+        .then(results => {
+            batch.forEach((item, index) => {
+                if (results[index]?.success) {
+                    item.resolve(results[index].data);
+                } else {
+                    item.reject(new Error(results[index]?.error || 'Batch request failed'));
+                }
+            });
+        })
+        .catch(error => {
+            batch.forEach(item => item.reject(error));
+        });
+    }
+}
+
+function setupLocalCache() {
+    window.cacheData = function(key, data, ttl = 300000) { // 5 minutes default
+        const cacheItem = {
+            data: data,
+            timestamp: Date.now(),
+            ttl: ttl
+        };
+        localStorage.setItem(`cache_${key}`, JSON.stringify(cacheItem));
+    };
+    
+    window.getCachedData = function(key) {
+        const cached = localStorage.getItem(`cache_${key}`);
+        if (!cached) return null;
+        
+        const cacheItem = JSON.parse(cached);
+        const now = Date.now();
+        
+        if (now - cacheItem.timestamp > cacheItem.ttl) {
+            localStorage.removeItem(`cache_${key}`);
+            return null;
+        }
+        
+        return cacheItem.data;
+    };
+}
+
+function setupMemoryCache() {
+    const memoryCache = new Map();
+    
+    window.memoryCache = {
+        set: (key, value, ttl = 60000) => { // 1 minute default
+            memoryCache.set(key, {
+                value: value,
+                expiry: Date.now() + ttl
+            });
+        },
+        
+        get: (key) => {
+            const item = memoryCache.get(key);
+            if (!item) return null;
+            
+            if (Date.now() > item.expiry) {
+                memoryCache.delete(key);
+                return null;
+            }
+            
+            return item.value;
+        },
+        
+        clear: () => memoryCache.clear()
+    };
+}
+
+function setupCacheCleanup() {
+    // Clean up expired cache entries every minute
+    setInterval(() => {
+        const now = Date.now();
+        
+        // Clean local storage cache
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('cache_')) {
+                try {
+                    const cacheItem = JSON.parse(localStorage.getItem(key));
+                    if (now - cacheItem.timestamp > cacheItem.ttl) {
+                        localStorage.removeItem(key);
+                    }
+                } catch (e) {
+                    // Remove invalid cache entries
+                    localStorage.removeItem(key);
+                }
+            }
+        });
+    }, 60000);
+}
