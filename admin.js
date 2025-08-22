@@ -3293,15 +3293,7 @@ async function simulateLocalUpload(file) {
     });
 }
 
-function getFileType(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const videoExts = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v'];
-    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-    
-    if (videoExts.includes(ext)) return 'video';
-    if (imageExts.includes(ext)) return 'image';
-    return 'unknown';
-}
+
 
 // Alternative: Direct GitHub Upload (Recommended for large files)
 function uploadToGitHub(file) {
