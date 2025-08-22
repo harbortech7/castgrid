@@ -440,6 +440,28 @@ function getAdminToken() {
     return token;
 }
 
+// Get tenant name (alias for getTenantId)
+function getTenant() {
+    return getTenantId();
+}
+
+// Show loading indicator
+function showLoading(message = 'Loading...') {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) {
+        loadingEl.textContent = message;
+        loadingEl.style.display = 'block';
+    }
+}
+
+// Hide loading indicator
+function hideLoading() {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) {
+        loadingEl.style.display = 'none';
+    }
+}
+
 function filterMediaItems(filter) {
     // Implementation for filtering media items
     console.log('Filtering media items by:', filter);
@@ -1250,6 +1272,17 @@ function loadMedia() {
     // Show loading state
     mediaGrid.innerHTML = '<div class="loading">Loading media...</div>';
     
+    // Check if we're running locally
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Local development mode - load from localStorage
+        console.log('Running in local development mode');
+        const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
+        console.log('Local media items:', localMedia);
+        displayMediaItems(localMedia);
+        return;
+    }
+    
+    // Production mode - fetch from API
     fetch(`${apiBase}/media-items`, {
         headers: authHeaders()
     })
