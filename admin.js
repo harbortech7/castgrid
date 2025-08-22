@@ -154,6 +154,269 @@ function updateDashboardStats() {
     `;
 }
 
+// Data loading functions
+async function loadDevices() {
+    try {
+        const response = await fetch('/.netlify/functions/devices');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        currentDevices = data.devices || [];
+        updateDevicesList();
+        // Cache the data
+        window.cacheData('devices', currentDevices, 5 * 60 * 1000); // 5 minutes
+        return currentDevices;
+    } catch (error) {
+        console.error('Error loading devices:', error);
+        return [];
+    }
+}
+
+async function loadMediaItems() {
+    try {
+        const response = await fetch('/.netlify/functions/media-items');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        currentMediaItems = data.mediaItems || [];
+        updateMediaItemsList();
+        // Cache the data
+        window.cacheData('mediaItems', currentMediaItems, 5 * 60 * 1000); // 5 minutes
+        return currentMediaItems;
+    } catch (error) {
+        console.error('Error loading media items:', error);
+        return [];
+    }
+}
+
+async function loadMediaBoxes() {
+    try {
+        const response = await fetch('/.netlify/functions/media-boxes');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        currentMediaBoxes = data.mediaBoxes || [];
+        updateMediaBoxesList();
+        // Cache the data
+        window.cacheData('mediaBoxes', currentMediaBoxes, 5 * 60 * 1000); // 5 minutes
+        return currentMediaBoxes;
+    } catch (error) {
+        console.error('Error loading media boxes:', error);
+        return [];
+    }
+}
+
+async function loadGrids() {
+    try {
+        const response = await fetch('/.netlify/functions/grids');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        currentGrids = data.grids || [];
+        updateGridsList();
+        // Cache the data
+        window.cacheData('grids', currentGrids, 5 * 60 * 1000); // 5 minutes
+        return currentGrids;
+    } catch (error) {
+        console.error('Error loading grids:', error);
+        return [];
+    }
+}
+
+// Update functions for UI lists
+function updateDevicesList() {
+    const devicesContainer = document.getElementById('devices-list');
+    if (!devicesContainer) return;
+    
+    if (currentDevices.length === 0) {
+        devicesContainer.innerHTML = '<p class="no-data">No devices found</p>';
+        return;
+    }
+    
+    devicesContainer.innerHTML = currentDevices.map(device => `
+        <div class="device-item" data-device-id="${device.id}">
+            <div class="device-info">
+                <h4>${device.name}</h4>
+                <p>${device.location || 'Unknown location'}</p>
+                <p class="device-status ${device.status || 'offline'}">${device.status || 'offline'}</p>
+            </div>
+            <div class="device-actions">
+                <button class="btn btn-small" onclick="editDevice('${device.id}')">Edit</button>
+                <button class="btn btn-small btn-danger" onclick="deleteDevice('${device.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateMediaItemsList() {
+    const mediaContainer = document.getElementById('media-items-list');
+    if (!mediaContainer) return;
+    
+    if (currentMediaItems.length === 0) {
+        mediaContainer.innerHTML = '<p class="no-data">No media items found</p>';
+        return;
+    }
+    
+    mediaContainer.innerHTML = currentMediaItems.map(item => `
+        <div class="media-item" data-media-id="${item.id}">
+            <div class="media-preview">
+                ${item.type === 'video' ? 
+                    `<video src="${item.url}" preload="metadata"></video>` : 
+                    `<img src="${item.url}" alt="${item.name}" loading="lazy">`
+                }
+            </div>
+            <div class="media-info">
+                <h4>${item.name}</h4>
+                <p>${item.type} • ${formatBytes(item.size || 0)}</p>
+                <p>${item.duration || 'Unknown duration'}</p>
+            </div>
+            <div class="media-actions">
+                <button class="btn btn-small" onclick="editMediaItem('${item.id}')">Edit</button>
+                <button class="btn btn-small btn-danger" onclick="deleteMediaItem('${item.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateMediaBoxesList() {
+    const boxesContainer = document.getElementById('media-boxes-list');
+    if (!boxesContainer) return;
+    
+    if (currentMediaBoxes.length === 0) {
+        boxesContainer.innerHTML = '<p class="no-data">No media boxes found</p>';
+        return;
+    }
+    
+    boxesContainer.innerHTML = currentMediaBoxes.map(box => `
+        <div class="media-box" data-box-id="${box.id}">
+            <div class="box-info">
+                <h4>${box.name}</h4>
+                <p>${box.description || 'No description'}</p>
+                <p>${box.mediaItems ? box.mediaItems.length : 0} items</p>
+            </div>
+            <div class="box-actions">
+                <button class="btn btn-small" onclick="editMediaBox('${box.id}')">Edit</button>
+                <button class="btn btn-small btn-danger" onclick="deleteMediaBox('${box.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateGridsList() {
+    const gridsContainer = document.getElementById('grids-list');
+    if (!gridsContainer) return;
+    
+    if (currentGrids.length === 0) {
+        gridsContainer.innerHTML = '<p class="no-data">No grids found</p>';
+        return;
+    }
+    
+    gridsContainer.innerHTML = currentGrids.map(grid => `
+        <div class="grid-item" data-grid-id="${grid.id}">
+            <div class="grid-info">
+                <h4>${grid.name}</h4>
+                <p>${grid.deviceId || 'No device assigned'}</p>
+                <p>${grid.zones ? grid.zones.length : 0} zones</p>
+            </div>
+            <div class="grid-actions">
+                <button class="btn btn-small" onclick="editGrid('${grid.id}')">Edit</button>
+                <button class="btn btn-small btn-danger" onclick="deleteGrid('${grid.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Render functions for cached data
+function renderDevices() {
+    updateDevicesList();
+}
+
+function renderMediaItems() {
+    updateMediaItemsList();
+}
+
+function renderMediaBoxes() {
+    updateMediaBoxesList();
+}
+
+function renderGrids() {
+    updateGridsList();
+}
+
+// Utility functions
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// Placeholder functions for edit/delete operations
+function editDevice(deviceId) {
+    console.log('Edit device:', deviceId);
+    // TODO: Implement device editing
+    showNotification('Device editing not yet implemented', 'info');
+}
+
+function deleteDevice(deviceId) {
+    console.log('Delete device:', deviceId);
+    // TODO: Implement device deletion
+    showNotification('Device deletion not yet implemented', 'info');
+}
+
+function editMediaItem(mediaId) {
+    console.log('Edit media item:', mediaId);
+    // TODO: Implement media item editing
+    showNotification('Media item editing not yet implemented', 'info');
+}
+
+function deleteMediaItem(mediaId) {
+    console.log('Delete media item:', mediaId);
+    // TODO: Implement media item deletion
+    showNotification('Media item deletion not yet implemented', 'info');
+}
+
+function editMediaBox(boxId) {
+    console.log('Edit media box:', boxId);
+    // TODO: Implement media box editing
+    showNotification('Media box editing not yet implemented', 'info');
+}
+
+function deleteMediaBox(boxId) {
+    console.log('Delete media box:', boxId);
+    // TODO: Implement media box deletion
+    showNotification('Media box deletion not yet implemented', 'info');
+}
+
+function editGrid(gridId) {
+    console.log('Edit grid:', gridId);
+    // TODO: Implement grid editing
+    showNotification('Grid editing not yet implemented', 'info');
+}
+
+function deleteGrid(gridId) {
+    console.log('Delete grid:', gridId);
+    // TODO: Implement grid deletion
+    showNotification('Grid deletion not yet implemented', 'info');
+}
+
+// Notification system
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <span class="notification-message">${message}</span>
+        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
 // ===== Event Listeners =====
 
 function setupEventListeners() {

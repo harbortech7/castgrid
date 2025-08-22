@@ -2069,4 +2069,71 @@ input[type="text"], input[type="password"], input[type="url"], input[type="numbe
 
 h1, h2, h3, h4, h5, h6, p, label, small, span {
     color: inherit !important; /* Inherit from the new forced parent color */
+}
+
+/* Notification system */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4CAF50;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 5px;
+    z-index: 1001;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    animation: slideInRight 0.3s ease;
+    max-width: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.notification-info {
+    background: #2196F3;
+}
+
+.notification-warning {
+    background: #FF9800;
+}
+
+.notification-error {
+    background: #f44336;
+}
+
+.notification-success {
+    background: #4CAF50;
+}
+
+.notification-message {
+    flex: 1;
+    margin-right: 15px;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.notification-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* No data states */
+.no-data {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 40px 20px;
 } 
