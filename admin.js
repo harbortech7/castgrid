@@ -3155,47 +3155,69 @@ function uploadFileInChunks(file) {
 }
 
 async function uploadFileDirect(file, isChunk = false) {
-    try {
-        showNotification(`Uploading ${file.name}...`, 'info');
-        
-        // Check if we're running locally (no Netlify Functions)
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            // Local development mode - simulate upload
-            await simulateLocalUpload(file);
-        } else {
-            // Production mode - use Netlify Functions
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', getFileType(file.name));
-            formData.append('filename', file.name);
+            try {
+            showNotification(`Uploading ${file.name}...`, 'info');
             
-            const response = await fetch('/.netlify/functions/upload-file', {
-                method: 'POST',
-                headers: {
-                    'X-Admin-Token': getAdminToken(),
-                    'X-Tenant': getTenantId()
-                },
-                body: formData
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                showNotification(`Successfully uploaded ${file.name}`, 'success');
-                if (!isChunk) {
-                    loadMediaItems(); // Refresh the list
-                }
+            // Check if we're running locally (no Netlify Functions)
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                // Local development mode - simulate upload
+                await simulateLocalUpload(file);
             } else {
-                throw new Error(result.error || 'Upload failed');
+                // Production mode - use Netlify Functions
+                console.log('Attempting to upload to Netlify Function...');
+                
+                // First, test if the function is accessible
+                try {
+                    const testResponse = await fetch('/.netlify/functions/upload-file-simple', {
+                        method: 'OPTIONS'
+                    });
+                    console.log('Function accessibility test:', testResponse.status, testResponse.statusText);
+                } catch (testError) {
+                    console.error('Function accessibility test failed:', testError);
+                }
+                
+                const response = await fetch('/.netlify/functions/upload-file-simple', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Token': getAdminToken(),
+                        'X-Tenant': getAdminToken(), // Using admin token as tenant for testing
+                    },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        type: getFileType(file.name),
+                        fileSize: file.size
+                    })
+                });
+                
+                console.log('Upload response:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Response error body:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Upload result:', result);
+                
+                if (result.success) {
+                    showNotification(`Successfully uploaded ${file.name}`, 'success');
+                    if (!isChunk) {
+                        loadMediaItems(); // Refresh the list
+                    }
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
             }
-        }
         
     } catch (error) {
         console.error('Upload error:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         showNotification(`Upload failed: ${error.message}`, 'error');
     }
 }
