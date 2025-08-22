@@ -2189,4 +2189,16 @@ h1, h2, h3, h4, h5, h6, p, label, small, span {
     color: #666;
     font-style: italic;
     padding: 40px 20px;
+}
+
+/* Local media badge */
+.local-badge {
+    background-color: #28a745;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+    display: inline-block;
+    margin-left: 8px;
 } 

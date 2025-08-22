@@ -173,14 +173,24 @@ async function loadDevices() {
 
 async function loadMediaItems() {
     try {
-        const response = await fetch('/.netlify/functions/media-items');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        currentMediaItems = data.mediaItems || [];
-        updateMediaItemsList();
-        // Cache the data
-        window.cacheData('mediaItems', currentMediaItems, 5 * 60 * 1000); // 5 minutes
-        return currentMediaItems;
+        // Check if we're running locally
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Local development mode - load from localStorage
+            const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
+            currentMediaItems = localMedia;
+            updateMediaItemsList();
+            return currentMediaItems;
+        } else {
+            // Production mode - load from Netlify Functions
+            const response = await fetch('/.netlify/functions/media-items');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            currentMediaItems = data.mediaItems || [];
+            updateMediaItemsList();
+            // Cache the data
+            window.cacheData('mediaItems', currentMediaItems, 5 * 60 * 1000); // 5 minutes
+            return currentMediaItems;
+        }
     } catch (error) {
         console.error('Error loading media items:', error);
         return [];
@@ -253,25 +263,32 @@ function updateMediaItemsList() {
         return;
     }
     
-    mediaContainer.innerHTML = currentMediaItems.map(item => `
-        <div class="media-item" data-media-id="${item.id}">
-            <div class="media-preview">
-                ${item.type === 'video' ? 
-                    `<video src="${item.url}" preload="metadata"></video>` : 
-                    `<img src="${item.url}" alt="${item.name}" loading="lazy">`
-                }
+    mediaContainer.innerHTML = currentMediaItems.map(item => {
+        const itemId = item.id || item.mediaId;
+        const itemUrl = item.url || item.localUrl;
+        const itemSize = item.size || item.fileSize;
+        
+        return `
+            <div class="media-item" data-media-id="${itemId}">
+                <div class="media-preview">
+                    ${item.type === 'video' ? 
+                        `<video src="${itemUrl}" preload="metadata" controls></video>` : 
+                        `<img src="${itemUrl}" alt="${item.name}" loading="lazy">`
+                    }
+                </div>
+                <div class="media-info">
+                    <h4>${item.name}</h4>
+                    <p>${item.type} • ${formatBytes(itemSize || 0)}</p>
+                    <p>${item.duration || 'Unknown duration'}</p>
+                    ${item.isLocal ? '<span class="local-badge">Local</span>' : ''}
+                </div>
+                <div class="media-actions">
+                    <button class="btn btn-small" onclick="editMediaItem('${itemId}')">Edit</button>
+                    <button class="btn btn-small btn-danger" onclick="deleteMediaItem('${itemId}')">Delete</button>
+                </div>
             </div>
-            <div class="media-info">
-                <h4>${item.name}</h4>
-                <p>${item.type} • ${formatBytes(item.size || 0)}</p>
-                <p>${item.duration || 'Unknown duration'}</p>
-            </div>
-            <div class="media-actions">
-                <button class="btn btn-small" onclick="editMediaItem('${item.id}')">Edit</button>
-                <button class="btn btn-small btn-danger" onclick="deleteMediaItem('${item.id}')">Delete</button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function updateMediaBoxesList() {
@@ -3138,42 +3155,87 @@ function uploadFileInChunks(file) {
 }
 
 async function uploadFileDirect(file, isChunk = false) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', getFileType(file.name));
-    formData.append('filename', file.name);
-    
     try {
         showNotification(`Uploading ${file.name}...`, 'info');
         
-        const response = await fetch('/.netlify/functions/upload-file', {
-            method: 'POST',
-            headers: {
-                'X-Admin-Token': getAdminToken(),
-                'X-Tenant': getTenantId()
-            },
-            body: formData
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification(`Successfully uploaded ${file.name}`, 'success');
-            if (!isChunk) {
-                loadMediaItems(); // Refresh the list
-            }
+        // Check if we're running locally (no Netlify Functions)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            // Local development mode - simulate upload
+            await simulateLocalUpload(file);
         } else {
-            throw new Error(result.error || 'Upload failed');
+            // Production mode - use Netlify Functions
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', getFileType(file.name));
+            formData.append('filename', file.name);
+            
+            const response = await fetch('/.netlify/functions/upload-file', {
+                method: 'POST',
+                headers: {
+                    'X-Admin-Token': getAdminToken(),
+                    'X-Tenant': getTenantId()
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showNotification(`Successfully uploaded ${file.name}`, 'success');
+                if (!isChunk) {
+                    loadMediaItems(); // Refresh the list
+                }
+            } else {
+                throw new Error(result.error || 'Upload failed');
+            }
         }
         
     } catch (error) {
         console.error('Upload error:', error);
         showNotification(`Upload failed: ${error.message}`, 'error');
     }
+}
+
+// Local development upload simulation
+async function simulateLocalUpload(file) {
+    return new Promise((resolve, reject) => {
+        // Simulate upload delay
+        setTimeout(() => {
+            try {
+                // Create a local media item
+                const mediaItem = {
+                    mediaId: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    name: file.name,
+                    filename: file.name,
+                    type: getFileType(file.name),
+                    fileSize: file.size,
+                    uploadedAt: new Date().toISOString(),
+                    isLocal: true,
+                    localUrl: URL.createObjectURL(file) // Create local blob URL
+                };
+                
+                // Store in localStorage for local development
+                const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
+                localMedia.push(mediaItem);
+                localStorage.setItem('localMediaItems', JSON.stringify(localMedia));
+                
+                showNotification(`Successfully uploaded ${file.name} (Local Mode)`, 'success');
+                
+                // Refresh the media list
+                if (typeof loadMediaItems === 'function') {
+                    loadMediaItems();
+                }
+                
+                resolve(mediaItem);
+            } catch (error) {
+                reject(error);
+            }
+        }, 1500); // 1.5 second delay to simulate upload
+    });
 }
 
 function getFileType(filename) {

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload System Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+    <h1>CastGrid Upload System Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="test-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button class="btn-primary" onclick="testUploadSystem()">Test Upload System</button>
+        <button class="btn-success" onclick="testLocalStorage()">Test Local Storage</button>
+        <button class="btn-danger" onclick="clearLocalStorage()">Clear Local Storage</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Local Media Items</h2>
+        <div id="local-media"></div>
+    </div>
+
+    <script>
+        function addTestResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function testUploadSystem() {
+            addTestResult('Testing upload system...', 'info');
+            
+            // Test if handleFiles function exists
+            if (typeof handleFiles === 'function') {
+                addTestResult('✅ handleFiles function found', 'success');
+            } else {
+                addTestResult('❌ handleFiles function not found', 'error');
+            }
+            
+            // Test if uploadFileDirect function exists
+            if (typeof uploadFileDirect === 'function') {
+                addTestResult('✅ uploadFileDirect function found', 'success');
+            } else {
+                addTestResult('❌ uploadFileDirect function not found', 'error');
+            }
+            
+            // Test if simulateLocalUpload function exists
+            if (typeof simulateLocalUpload === 'function') {
+                addTestResult('✅ simulateLocalUpload function found', 'success');
+            } else {
+                addTestResult('❌ simulateLocalUpload function not found', 'error');
+            }
+            
+            // Test if getFileType function exists
+            if (typeof getFileType === 'function') {
+                addTestResult('✅ getFileType function found', 'success');
+            } else {
+                addTestResult('❌ getFileType function not found', 'error');
+            }
+        }
+
+        function testLocalStorage() {
+            addTestResult('Testing local storage...', 'info');
+            
+            try {
+                const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
+                addTestResult(`✅ Local storage accessible. Found ${localMedia.length} media items.`, 'success');
+                displayLocalMedia();
+            } catch (error) {
+                addTestResult(`❌ Local storage error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLocalStorage() {
+            addTestResult('Clearing local storage...', 'info');
+            try {
+                localStorage.removeItem('localMediaItems');
+                addTestResult('✅ Local storage cleared', 'success');
+                displayLocalMedia();
+            } catch (error) {
+                addTestResult(`❌ Error clearing storage: ${error.message}`, 'error');
+            }
+        }
+
+        function displayLocalMedia() {
+            const mediaDiv = document.getElementById('local-media');
+            try {
+                const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
+                
+                if (localMedia.length === 0) {
+                    mediaDiv.innerHTML = '<p>No local media items found.</p>';
+                    return;
+                }
+                
+                mediaDiv.innerHTML = localMedia.map(item => `
+                    <div style="border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 4px;">
+                        <h4>${item.name}</h4>
+                        <p><strong>Type:</strong> ${item.type}</p>
+                        <p><strong>Size:</strong> ${item.fileSize} bytes</p>
+                        <p><strong>Uploaded:</strong> ${item.uploadedAt}</p>
+                        <p><strong>Local:</strong> ${item.isLocal ? 'Yes' : 'No'}</p>
+                        ${item.localUrl ? `<p><strong>Local URL:</strong> <a href="${item.localUrl}" target="_blank">View File</a></p>` : ''}
+                    </div>
+                `).join('');
+            } catch (error) {
+                mediaDiv.innerHTML = `<p style="color: red;">Error displaying media: ${error.message}</p>`;
+            }
+        }
+
+        // Load admin.js to test the functions
+        function loadAdminJS() {
+            addTestResult('Loading admin.js...', 'info');
+            
+            const script = document.createElement('script');
+            script.src = 'admin.js';
+            script.onload = function() {
+                addTestResult('✅ admin.js loaded successfully', 'success');
+                // Wait a bit for functions to initialize
+                setTimeout(() => {
+                    testUploadSystem();
+                    testLocalStorage();
+                }, 1000);
+            };
+            script.onerror = function() {
+                addTestResult('❌ Failed to load admin.js', 'error');
+            };
+            document.head.appendChild(script);
+        }
+
+        // Auto-run tests when page loads
+        window.addEventListener('load', function() {
+            addTestResult('Page loaded, starting tests...', 'info');
+            loadAdminJS();
+        });
+    </script>
+</body>
+</html>
