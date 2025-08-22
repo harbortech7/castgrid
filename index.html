@@ -221,20 +221,29 @@
                         <p>Upload and manage your videos and images</p>
                     </div>
 
-                    <!-- File Upload Area -->
-                    <div class="upload-area" id="upload-area">
+                    <!-- Enhanced File Upload Area -->
+                    <div class="upload-area" id="upload-zone">
                         <div class="upload-icon">
                             <i class="fas fa-cloud-upload-alt"></i>
                         </div>
                         <p>Drag & drop media files here or click to browse</p>
                         <p class="upload-info">Supported: MP4, AVI, MOV, JPG, PNG, GIF (Max: 50MB)</p>
+                        
+                        <!-- Upload Progress Display -->
+                        <div id="upload-progress" class="upload-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <div id="upload-status" class="upload-status">Preparing upload...</div>
+                        </div>
                     </div>
                     
                     <div class="media-actions">
                         <input type="text" id="media-search" placeholder="Search media...">
-                        <button class="btn-primary" id="add-media-url-btn"><i class="fas fa-link"></i> Add by URL</button>
-                        <input type="file" id="media-upload" class="media-upload-input" multiple accept="video/*,image/*">
-                        <label for="media-upload" class="btn-secondary"><i class="fas fa-upload"></i> Upload Files</label>
+                        <button class="btn-primary" id="addMediaUrlBtn"><i class="fas fa-link"></i> Add by URL</button>
+                        <button class="btn-secondary" id="uploadFilesBtn"><i class="fas fa-upload"></i> Upload Files</button>
+                        <button class="btn-info" id="githubUploadBtn"><i class="fab fa-github"></i> Upload to GitHub</button>
+                        <input type="file" id="mediaUploadInput" multiple accept="video/*,image/*" style="display: none;">
                     </div>
 
                     <!-- Media Grid -->

@@ -411,6 +411,25 @@ function getTenantId() {
     return 'default';
 }
 
+function getAdminToken() {
+    // Get admin token from localStorage or prompt user
+    let token = localStorage.getItem('adminToken');
+    if (!token) {
+        token = prompt('Enter your admin token:');
+        if (token) {
+            localStorage.setItem('adminToken', token);
+        }
+    }
+    return token;
+}
+
+function filterMediaItems(filter) {
+    // Implementation for filtering media items
+    console.log('Filtering media items by:', filter);
+    // TODO: Implement actual filtering logic
+    showNotification(`Filtered to show: ${filter}`, 'info');
+}
+
 // Setup step functions
 function completeStep(stepNumber) {
     console.log('Completing step:', stepNumber);
@@ -504,6 +523,34 @@ document.addEventListener('DOMContentLoaded', function() {
             showNotification(`Filtered to show: ${filter}`, 'info');
         });
     });
+
+    // Initialize enhanced upload system
+    initializeEnhancedUpload();
+    
+    // Add event listeners for upload buttons
+    const uploadFilesBtn = document.getElementById('uploadFilesBtn');
+    const githubUploadBtn = document.getElementById('githubUploadBtn');
+    
+    if (uploadFilesBtn) {
+        uploadFilesBtn.addEventListener('click', () => {
+            document.getElementById('mediaUploadInput').click();
+        });
+    }
+    
+    if (githubUploadBtn) {
+        githubUploadBtn.addEventListener('click', () => {
+            // Show file picker for GitHub upload
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = 'video/*,image/*';
+            input.onchange = (e) => {
+                const files = Array.from(e.target.files);
+                files.forEach(file => uploadToGitHub(file));
+            };
+            input.click();
+        });
+    }
     
     // Accessibility toggle handlers
     const toggleContrastBtn = document.getElementById('toggle-contrast');
@@ -554,7 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Media upload input handler
+    // Media upload input handler (legacy - now handled by enhanced system)
     const mediaUploadInput = document.getElementById('media-upload');
     if (mediaUploadInput) {
         mediaUploadInput.addEventListener('change', function(e) {
@@ -562,8 +609,8 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Media files selected:', files.length);
             
             if (files.length > 0) {
-                showNotification(`${files.length} file(s) selected for upload`, 'info');
-                // TODO: Implement file upload functionality
+                // Use the new enhanced upload system
+                handleFiles(files);
             }
         });
     }
@@ -3084,4 +3131,219 @@ function setupCacheCleanup() {
             }
         });
     }, 60000);
+}
+
+// Enhanced Upload System - No More Freezing
+function initializeEnhancedUpload() {
+    const uploadZone = document.getElementById('upload-zone');
+    const uploadInput = document.getElementById('mediaUploadInput');
+    const uploadProgress = document.getElementById('upload-progress');
+    const uploadStatus = document.getElementById('upload-status');
+    
+    if (!uploadZone || !uploadInput) return;
+
+    // Drag and drop handlers
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('drag-over');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        const files = Array.from(e.dataTransfer.files);
+        handleFiles(files);
+    });
+
+    uploadZone.addEventListener('click', () => {
+        uploadInput.click();
+    });
+
+    uploadInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        handleFiles(files);
+    });
+}
+
+function handleFiles(files) {
+    files.forEach(file => {
+        if (file.size > 50 * 1024 * 1024) { // 50MB limit
+            showNotification(`File ${file.name} is too large. Maximum size is 50MB.`, 'error');
+            return;
+        }
+        
+        // Use chunked upload for large files
+        if (file.size > 5 * 1024 * 1024) { // 5MB threshold
+            uploadFileInChunks(file);
+        } else {
+            uploadFileDirect(file);
+        }
+    });
+}
+
+function uploadFileInChunks(file) {
+    const chunkSize = 1024 * 1024; // 1MB chunks
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    let currentChunk = 0;
+    
+    showNotification(`Starting chunked upload of ${file.name} (${totalChunks} chunks)`, 'info');
+    
+    const uploadChunk = async () => {
+        if (currentChunk >= totalChunks) {
+            showNotification(`Upload complete: ${file.name}`, 'success');
+            loadMediaItems(); // Refresh the list
+            return;
+        }
+        
+        const start = currentChunk * chunkSize;
+        const end = Math.min(start + chunkSize, file.size);
+        const chunk = file.slice(start, end);
+        
+        try {
+            // Create a temporary file for this chunk
+            const chunkFile = new File([chunk], `${file.name}.part${currentChunk}`, {
+                type: file.type
+            });
+            
+            // Upload chunk using the existing upload function
+            await uploadFileDirect(chunkFile, true);
+            
+            currentChunk++;
+            const progress = Math.round((currentChunk / totalChunks) * 100);
+            
+            showNotification(`Uploading ${file.name}: ${progress}% complete`, 'info');
+            
+            // Continue with next chunk
+            setTimeout(uploadChunk, 100);
+            
+        } catch (error) {
+            showNotification(`Error uploading chunk ${currentChunk + 1}: ${error.message}`, 'error');
+        }
+    };
+    
+    uploadChunk();
+}
+
+async function uploadFileDirect(file, isChunk = false) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', getFileType(file.name));
+    formData.append('filename', file.name);
+    
+    try {
+        showNotification(`Uploading ${file.name}...`, 'info');
+        
+        const response = await fetch('/.netlify/functions/upload-file', {
+            method: 'POST',
+            headers: {
+                'X-Admin-Token': getAdminToken(),
+                'X-Tenant': getTenantId()
+            },
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(`Successfully uploaded ${file.name}`, 'success');
+            if (!isChunk) {
+                loadMediaItems(); // Refresh the list
+            }
+        } else {
+            throw new Error(result.error || 'Upload failed');
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showNotification(`Upload failed: ${error.message}`, 'error');
+    }
+}
+
+function getFileType(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const videoExts = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v'];
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+    
+    if (videoExts.includes(ext)) return 'video';
+    if (imageExts.includes(ext)) return 'image';
+    return 'unknown';
+}
+
+// Alternative: Direct GitHub Upload (Recommended for large files)
+function uploadToGitHub(file) {
+    const githubUrl = `https://github.com/harbortech7/castgrid/upload/main/data/tenants/${getTenantId()}/media`;
+    
+    showNotification(`Opening GitHub upload for ${file.name}`, 'info');
+    
+    // Open GitHub upload in new tab
+    window.open(githubUrl, '_blank');
+    
+    // Show instructions
+    showNotification(`
+        <strong>GitHub Upload Instructions:</strong><br>
+        1. Upload ${file.name} to the media folder<br>
+        2. Copy the raw file URL<br>
+        3. Use "Add by URL" in the dashboard
+    `, 'info', 10000);
+}
+
+// Enhanced Add by URL function
+function addMediaByURL() {
+    const url = prompt('Enter the media file URL:');
+    if (!url) return;
+    
+    const filename = url.split('/').pop().split('?')[0];
+    const type = getFileType(filename);
+    
+    if (type === 'unknown') {
+        showNotification('Unsupported file type. Please use MP4, AVI, MOV, JPG, PNG, or GIF files.', 'error');
+        return;
+    }
+    
+    // Create media item
+    const mediaItem = {
+        mediaId: `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: type,
+        filename: filename,
+        originalFilename: filename,
+        url: url,
+        duration: type === 'image' ? 10 : 30,
+        isLocal: false,
+        downloadStatus: 'available',
+        uploadedAt: new Date().toISOString()
+    };
+    
+    // Save to GitHub via API
+    saveMediaItem(mediaItem);
+}
+
+async function saveMediaItem(mediaItem) {
+    try {
+        const response = await fetch('/.netlify/functions/media-items', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Admin-Token': getAdminToken(),
+                'X-Tenant': getTenantId()
+            },
+            body: JSON.stringify(mediaItem)
+        });
+        
+        if (response.ok) {
+            showNotification(`Media item ${mediaItem.filename} added successfully`, 'success');
+            loadMediaItems(); // Refresh the list
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    } catch (error) {
+        showNotification(`Failed to save media item: ${error.message}`, 'error');
+    }
 }
