@@ -503,7 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             showNotification(`Filtered to show: ${filter}`, 'info');
         });
-    }
+    });
     
     // Accessibility toggle handlers
     const toggleContrastBtn = document.getElementById('toggle-contrast');
