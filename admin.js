@@ -3153,11 +3153,16 @@ function handleFiles(files) {
             return;
         }
         
-        // Use chunked upload for large files
-        if (file.size > 5 * 1024 * 1024) { // 5MB threshold
-            uploadFileInChunks(file);
-        } else {
+        if (isLocalEnvironment()) {
+            // In local mode, simulate whole file upload without chunking
             uploadFileDirect(file);
+        } else {
+            // In production, use chunking for large files
+            if (file.size > 5 * 1024 * 1024) { // 5MB threshold
+                uploadFileInChunks(file);
+            } else {
+                uploadFileDirect(file);
+            }
         }
     });
 }
@@ -3307,7 +3312,7 @@ async function simulateLocalUpload(file) {
             } catch (error) {
                 reject(error);
             }
-        }, 1500); // 1.5 second delay to simulate upload
+        }, 500); // Reduced to 0.5 second for better UX
     });
 }
 
