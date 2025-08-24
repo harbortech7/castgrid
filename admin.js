@@ -4,6 +4,7 @@ console.log('🎯 CastGrid Admin Dashboard - VERSION 3.0 - UPLOAD FIXES APPLIED'
 // Global variables
 let apiBase = '/.netlify/functions';
 let identityUser = null;
+const isLocalEnvironment = () => (location.protocol === 'file:' || location.hostname === '' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 let currentDevices = [];
 let currentMediaItems = [];
 let currentMediaBoxes = [];
@@ -175,7 +176,7 @@ async function loadDevices() {
 async function loadMediaItems() {
     try {
         // Check if we're running locally
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        if (isLocalEnvironment()) {
             // Local development mode - load from localStorage
             const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
             currentMediaItems = localMedia;
@@ -200,6 +201,12 @@ async function loadMediaItems() {
 
 async function loadMediaBoxes() {
     try {
+        if (isLocalEnvironment()) {
+            const local = JSON.parse(localStorage.getItem('localMediaBoxes') || '[]');
+            currentMediaBoxes = local;
+            updateMediaBoxesList();
+            return currentMediaBoxes;
+        }
         const response = await fetch('/.netlify/functions/media-boxes');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -216,6 +223,12 @@ async function loadMediaBoxes() {
 
 async function loadGrids() {
     try {
+        if (isLocalEnvironment()) {
+            const local = JSON.parse(localStorage.getItem('localGrids') || '[]');
+            currentGrids = local;
+            updateGridsList && updateGridsList();
+            return currentGrids;
+        }
         const response = await fetch('/.netlify/functions/grids');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -887,6 +900,7 @@ function loadStoredConfig() {
 
 async function loadDevices() {
     showLoading(true);
+    if (isLocalEnvironment()) { try { const cached = JSON.parse(localStorage.getItem('localDevices') || '[]'); currentDevices = cached; renderDevices(); if (typeof updateDeviceSelectors==='function') updateDeviceSelectors(); return; } catch (e) { console.warn('Local devices fallback failed', e); } }
     try {
         const res = await fetch(`${apiBase}/devices`, { headers: authHeaders() });
         if (!res.ok) throw new Error(await res.text());
@@ -1274,7 +1288,7 @@ function loadMedia() {
     mediaGrid.innerHTML = '<div class="loading">Loading media...</div>';
     
     // Check if we're running locally
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    if (isLocalEnvironment()) {
         // Local development mode - load from localStorage
         console.log('Running in local development mode');
         const localMedia = JSON.parse(localStorage.getItem('localMediaItems') || '[]');
@@ -1526,6 +1540,7 @@ async function deleteMedia(mediaId) {
 
 async function loadMediaBoxes() {
     showLoading(true);
+    if (isLocalEnvironment()) { try { const cached = JSON.parse(localStorage.getItem('localMediaBoxes') || '[]'); currentMediaBoxes = cached; renderMediaBoxes(); return; } catch (e) { console.warn('Local media boxes fallback failed', e); } }
     try {
         const res = await fetch(`${apiBase}/media-boxes`, { headers: authHeaders() });
         if (!res.ok) throw new Error(await res.text());
@@ -1772,6 +1787,7 @@ function loadGridDesigner() {
 
 async function loadGrids() {
     showLoading(true);
+    if (isLocalEnvironment()) { try { const cached = JSON.parse(localStorage.getItem('localGrids') || '[]'); currentGrids = cached; return; } catch (e) { console.warn('Local grids fallback failed', e); } }
     try {
         const res = await fetch(`${apiBase}/grids`, { headers: authHeaders() });
         if (!res.ok) throw new Error(await res.text());
@@ -2783,7 +2799,8 @@ function setupSyncMonitoring() {
 
 function setupOfflineSupport() {
     // Check if service worker is supported
-    if ('serviceWorker' in navigator) {
+    const __isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+    if (__isHttp && 'serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
             .then(registration => {
                 console.log('Service Worker registered:', registration);
@@ -3193,7 +3210,7 @@ async function uploadFileDirect(file, isChunk = false) {
             showNotification(`Uploading ${file.name}...`, 'info');
             
             // Check if we're running locally (no Netlify Functions)
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            if (isLocalEnvironment()) {
                 // Local development mode - simulate upload
                 await simulateLocalUpload(file);
             } else {
