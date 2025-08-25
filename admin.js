@@ -3158,11 +3158,11 @@ function handleFiles(files) {
             uploadFileDirect(file);
         } else {
             // In production, use chunking for large files
-            if (file.size > 5 * 1024 * 1024) { // 5MB threshold
-                uploadFileInChunks(file);
-            } else {
-                uploadFileDirect(file);
+            if (file.size > 50 * 1024 * 1024) { // 50MB threshold
+                showNotification('File too large (>50MB). Please use GitHub direct upload for large files.', 'error');
+                return;
             }
+            uploadFileDirect(file);
         }
     });
 }

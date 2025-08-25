@@ -82,6 +82,15 @@ exports.handler = async function(event, context) {
         const safeFilename = formData.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `data/tenants/${tenant}/media/${timestamp}_${safeFilename}`;
 
+        // Check file size
+        if (formData.file.length > 50 * 1024 * 1024) {
+            return {
+                statusCode: 413,
+                headers,
+                body: JSON.stringify({ error: 'File too large (max 50MB)' })
+            };
+        }
+
         // Convert file to base64 for GitHub storage
         const fileContent = formData.file.toString('base64');
 
